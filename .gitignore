@@ -1,0 +1,6 @@
+*.efi
+*.img
+*.bin
+*.so
+*.o
+*.pyc
