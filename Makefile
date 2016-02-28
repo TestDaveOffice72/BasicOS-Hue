@@ -1,20 +1,23 @@
-ARCH            = x86_64
+ARCH          = x86_64
 
-OBJS            = src/main.o
+HEADERS       = src/kernel.h
+OBJS          = src/main.o src/graphics.o
 
-EFIINC          = /usr/include/efi
-EFIINCS         = -I$(EFIINC) -I$(EFIINC)/$(ARCH) -I$(EFIINC)/protocol
-EFI_CRT_OBJS    = /usr/lib/crt0-efi-$(ARCH).o
-EFI_LDS         = /usr/lib/elf_$(ARCH)_efi.lds
-OVMF 			= /usr/share/ovmf/ovmf_x64.bin
-QEMU_OPTS 		= -enable-kvm -m 64
+EFIINC        = /usr/include/efi
+EFIINCS       = -I$(EFIINC) -I$(EFIINC)/$(ARCH) -I$(EFIINC)/protocol
+EFI_CRT_OBJS  = /usr/lib/crt0-efi-$(ARCH).o
+EFI_LDS       = /usr/lib/elf_$(ARCH)_efi.lds
+OVMF          = /usr/share/ovmf/ovmf_x64.bin
+QEMU_OPTS     = -enable-kvm -m 64 -device VGA
 
-CFLAGS          = $(EFIINCS) -xc -std=c11 -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -Wall
+CFLAGS        = $(EFIINCS) -xc -std=c11 -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
+-Wall -Wno-incompatible-library-redeclaration -O2
+
 ifeq ($(ARCH),x86_64)
   CFLAGS += -DEFI_FUNCTION_WRAPPER
 endif
 
-LDFLAGS         = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic -L /usr/lib $(EFI_CRT_OBJS)
+LDFLAGS       = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic -L /usr/lib $(EFI_CRT_OBJS)
 
 all: image.img
 
@@ -38,3 +41,6 @@ huehuehuehuehue.so: $(OBJS)
 
 %.efi: %.so
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym  -j .rel -j .rela -j .reloc --target=efi-app-$(ARCH) $^ $@
+
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c -o $@ $<
