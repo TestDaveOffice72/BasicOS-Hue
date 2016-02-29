@@ -86,5 +86,22 @@ void set_pixel(int w, int h, uint32_t rgb) {
     w *= 4;
     h *= 4;
     int32_t *addr = graphics_info.buffer_base + w + h * graphics_info.output_mode.PixelsPerScanLine;
-    *addr = rgb | 0xff000000;
+    *addr = rgb;
+}
+
+void fill_screen(uint32_t rgb) {
+    rgb |= 0xff000000;
+    for(int x = 0; x < graphics_info.output_mode.HorizontalResolution; x += 1) {
+        for(int y = 0; y < graphics_info.output_mode.VerticalResolution; y += 1) {
+            set_pixel(x, y, rgb);
+        }
+    }
+}
+
+void red_screen() {
+    fill_screen(0xffc1272d);
+}
+
+void green_screen() {
+    fill_screen(0xff006a44);
 }

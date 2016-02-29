@@ -13,12 +13,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     EFI_STATUS status;
     InitializeLib(ImageHandle, SystemTable);
 
-    // Figure out the size of memory map.
-    boot_state.memory_map = LibMemoryMap(&boot_state.memory_map_size, &boot_state.map_key,
-                                         &boot_state.descriptor_size,
-                                         &boot_state.descriptor_version);
-
-
+    // Initialize graphics
     EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics;
     EFI_GUID graphics_proto = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     status = uefi_call_wrapper(SystemTable->BootServices->LocateProtocol, 3,
@@ -27,12 +22,20 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     status = init_graphics(graphics);
     if(status != EFI_SUCCESS) return status;
 
+    // Figure out the size of memory map.
+    boot_state.memory_map = LibMemoryMap(&boot_state.memory_map_size, &boot_state.map_key,
+                                         &boot_state.descriptor_size,
+                                         &boot_state.descriptor_version);
+
     uefi_call_wrapper(SystemTable->BootServices->ExitBootServices, 2,
                       ImageHandle, boot_state.map_key);
-
     uefi_call_wrapper(SystemTable->RuntimeServices->SetVirtualAddressMap, 4,
                       boot_state.memory_map_size, boot_state.descriptor_size,
                       boot_state.descriptor_version, boot_state.memory_map);
+
+    // Init interrupts
+    status = init_interrupts();
+    ASSERT_EFI_STATUS(status, L"init interrupts");
 
     // Some work, blends in the lithuanian flag
     for(uint8_t o = 0; o <= 100; o += 1) {
@@ -64,5 +67,5 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     // Once we’re done we poweroff the machine.
     uefi_call_wrapper(SystemTable->RuntimeServices->ResetSystem, 4,
                       EfiResetShutdown, EFI_SUCCESS, 0, NULL);
-    return EFI_SUCCESS;
+    for(;;) __asm__("hlt");
 }

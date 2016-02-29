@@ -14,6 +14,17 @@ struct boot_state {
 
 extern struct boot_state boot_state;
 
+
+/**************
+ * Interrupts *
+ **************/
+
+EFI_STATUS init_interrupts();
+
+/************
+ * Graphics *
+ ************/
+
 struct graphics_info {
     EFI_GRAPHICS_OUTPUT_PROTOCOL         *protocol;
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION output_mode;

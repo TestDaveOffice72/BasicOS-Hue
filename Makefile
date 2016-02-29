@@ -1,7 +1,7 @@
 ARCH          = x86_64
 
 HEADERS       = src/kernel.h
-OBJS          = src/main.o src/graphics.o
+OBJS          = src/main.o src/graphics.o src/interrupts.o
 
 EFIINC        = /usr/include/efi
 EFIINCS       = -I$(EFIINC) -I$(EFIINC)/$(ARCH) -I$(EFIINC)/protocol
