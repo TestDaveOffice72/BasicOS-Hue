@@ -7,7 +7,6 @@
 struct boot_state boot_state;
 
 EFI_STATUS
-EFIAPI
 efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 {
     EFI_STATUS status;
@@ -16,8 +15,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     // Initialize graphics
     EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics;
     EFI_GUID graphics_proto = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-    status = uefi_call_wrapper(SystemTable->BootServices->LocateProtocol, 3,
-                               &graphics_proto, NULL, &graphics);
+    status = SystemTable->BootServices->LocateProtocol(&graphics_proto, NULL, (void **)&graphics);
     ASSERT_EFI_STATUS(status, L"LocateProtocol Graphics");
     status = init_graphics(graphics);
     if(status != EFI_SUCCESS) return status;
@@ -27,11 +25,11 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
                                          &boot_state.descriptor_size,
                                          &boot_state.descriptor_version);
 
-    uefi_call_wrapper(SystemTable->BootServices->ExitBootServices, 2,
-                      ImageHandle, boot_state.map_key);
-    uefi_call_wrapper(SystemTable->RuntimeServices->SetVirtualAddressMap, 4,
-                      boot_state.memory_map_size, boot_state.descriptor_size,
-                      boot_state.descriptor_version, boot_state.memory_map);
+    SystemTable->BootServices->ExitBootServices(ImageHandle, boot_state.map_key);
+    SystemTable->RuntimeServices->SetVirtualAddressMap(boot_state.memory_map_size,
+                                                       boot_state.descriptor_size,
+                                                       boot_state.descriptor_version,
+                                                       boot_state.memory_map);
 
     // Init interrupts
     status = init_interrupts();
@@ -65,7 +63,6 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     }
 
     // Once we’re done we poweroff the machine.
-    uefi_call_wrapper(SystemTable->RuntimeServices->ResetSystem, 4,
-                      EfiResetShutdown, EFI_SUCCESS, 0, NULL);
+    SystemTable->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
     for(;;) __asm__("hlt");
 }

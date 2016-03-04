@@ -16,7 +16,7 @@ init_graphics(EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics)
     EFI_STATUS status = select_mode(graphics, &new_mode);
     ASSERT_EFI_STATUS(status, L"init_graphics select_mode");
 
-    status = uefi_call_wrapper(graphics->SetMode, 2, graphics, new_mode);
+    status = graphics->SetMode(graphics, new_mode);
     ASSERT_EFI_STATUS(status, L"init_graphics SetMode");
     graphics_info.protocol = graphics;
     graphics_info.buffer_base = (void*)graphics->Mode->FrameBufferBase;
@@ -34,16 +34,14 @@ select_mode(EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics, OUT UINT32 *mode)
     UINTN size;
 
     // Initialize info of current mode
-    EFI_STATUS status = uefi_call_wrapper(graphics->QueryMode, 4,
-                                          graphics, *mode, &size, &info);
+    EFI_STATUS status = graphics->QueryMode(graphics, *mode, &size, &info);
     ASSERT_EFI_STATUS(status, L"select_mode");
     most_appropriate_info = *info;
 
     // Look for a better mode
     for(UINT32 i = 0; i < graphics->Mode->MaxMode; i += 1) {
         // Find out the parameters of the mode we’re looking at
-        EFI_STATUS status = uefi_call_wrapper(graphics->QueryMode, 4,
-                                              graphics, i, &size, &info);
+        EFI_STATUS status = graphics->QueryMode(graphics, i, &size, &info);
         ASSERT_EFI_STATUS(status, L"select_mode");
         #ifdef DEBUG
         Print(L"Option #%d: w: %d, h: %d, pixel format: %d\n",

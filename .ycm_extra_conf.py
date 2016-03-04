@@ -44,8 +44,8 @@ flags = [
 '-fshort-wchar',
 '-mno-red-zone',
 '-Wall',
-'-DEFI_FUNCTION_WRAPPER',
-'-xc'
+'-DHAVE_USE_MS_ABI',
+'-xc',
 ]
 
 

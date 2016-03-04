@@ -14,7 +14,7 @@ CFLAGS        = $(EFIINCS) -xc -std=c11 -fno-stack-protector -fpic -fshort-wchar
 -Wall -Wno-incompatible-library-redeclaration -O2
 
 ifeq ($(ARCH),x86_64)
-  CFLAGS += -DEFI_FUNCTION_WRAPPER
+  CFLAGS += -DHAVE_USE_MS_ABI
 endif
 
 LDFLAGS       = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic -L /usr/lib $(EFI_CRT_OBJS)
@@ -37,7 +37,7 @@ data.img: huehuehuehuehue.efi
 	mcopy -i $@ $< ::/
 
 huehuehuehuehue.so: $(OBJS)
-	ld $(LDFLAGS) $(OBJS) -o $@ -lefi -lgnuefi
+	ld.gold $(LDFLAGS) $(OBJS) -o $@ -lefi -lgnuefi
 
 %.efi: %.so
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym  -j .rel -j .rela -j .reloc --target=efi-app-$(ARCH) $^ $@
