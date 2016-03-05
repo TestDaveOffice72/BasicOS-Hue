@@ -1,5 +1,4 @@
 #include <efi.h>
-#include <efilib.h>
 #include <efiprot.h>
 
 #include "kernel.h"
@@ -10,30 +9,34 @@ EFI_STATUS
 efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 {
     EFI_STATUS status;
-    InitializeLib(ImageHandle, SystemTable);
+    boot_state.image_handle = ImageHandle;
+    boot_state.system_table = SystemTable;
+
+    status = init_cpu();
+    ASSERT_EFI_STATUS(status);
 
     // Initialize graphics
     EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics;
     EFI_GUID graphics_proto = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     status = SystemTable->BootServices->LocateProtocol(&graphics_proto, NULL, (void **)&graphics);
-    ASSERT_EFI_STATUS(status, L"LocateProtocol Graphics");
+    ASSERT_EFI_STATUS(status);
     status = init_graphics(graphics);
-    if(status != EFI_SUCCESS) return status;
-
-    // Figure out the size of memory map.
-    boot_state.memory_map = LibMemoryMap(&boot_state.memory_map_size, &boot_state.map_key,
-                                         &boot_state.descriptor_size,
-                                         &boot_state.descriptor_version);
-
-    SystemTable->BootServices->ExitBootServices(ImageHandle, boot_state.map_key);
-    SystemTable->RuntimeServices->SetVirtualAddressMap(boot_state.memory_map_size,
-                                                       boot_state.descriptor_size,
-                                                       boot_state.descriptor_version,
-                                                       boot_state.memory_map);
+    ASSERT_EFI_STATUS(status);
 
     // Init interrupts
     status = init_interrupts();
-    ASSERT_EFI_STATUS(status, L"init interrupts");
+    ASSERT_EFI_STATUS(status);
+
+    // Figure out the size of memory map.
+    // boot_state.memory_map = LibMemoryMap(&boot_state.memory_map_size, &boot_state.map_key,
+    //                                      &boot_state.descriptor_size,
+    //                                      &boot_state.descriptor_version);
+
+    // SystemTable->BootServices->ExitBootServices(ImageHandle, boot_state.map_key);
+    // SystemTable->RuntimeServices->SetVirtualAddressMap(boot_state.memory_map_size,
+    //                                                    boot_state.descriptor_size,
+    //                                                    boot_state.descriptor_version,
+    //                                                    boot_state.memory_map);
 
     // Some work, blends in the lithuanian flag
     for(uint8_t o = 0; o <= 100; o += 1) {

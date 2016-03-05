@@ -14,10 +14,10 @@ init_graphics(EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics)
 {
     UINT32 new_mode;
     EFI_STATUS status = select_mode(graphics, &new_mode);
-    ASSERT_EFI_STATUS(status, L"init_graphics select_mode");
+    ASSERT_EFI_STATUS(status);
 
     status = graphics->SetMode(graphics, new_mode);
-    ASSERT_EFI_STATUS(status, L"init_graphics SetMode");
+    ASSERT_EFI_STATUS(status);
     graphics_info.protocol = graphics;
     graphics_info.buffer_base = (void*)graphics->Mode->FrameBufferBase;
     graphics_info.buffer_size = graphics->Mode->FrameBufferSize;
@@ -35,18 +35,14 @@ select_mode(EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics, OUT UINT32 *mode)
 
     // Initialize info of current mode
     EFI_STATUS status = graphics->QueryMode(graphics, *mode, &size, &info);
-    ASSERT_EFI_STATUS(status, L"select_mode");
+    ASSERT_EFI_STATUS(status);
     most_appropriate_info = *info;
 
     // Look for a better mode
     for(UINT32 i = 0; i < graphics->Mode->MaxMode; i += 1) {
         // Find out the parameters of the mode we’re looking at
         EFI_STATUS status = graphics->QueryMode(graphics, i, &size, &info);
-        ASSERT_EFI_STATUS(status, L"select_mode");
-        #ifdef DEBUG
-        Print(L"Option #%d: w: %d, h: %d, pixel format: %d\n",
-              i, info->HorizontalResolution, info->VerticalResolution, info->PixelFormat);
-        #endif
+        ASSERT_EFI_STATUS(status);
         // We only accept RGB or BGR 8 bit colorspaces.
         if(info->PixelFormat != PixelRedGreenBlueReserved8BitPerColor &&
            info->PixelFormat != PixelBlueGreenRedReserved8BitPerColor) {
@@ -71,12 +67,6 @@ select_mode(EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics, OUT UINT32 *mode)
         }
     }
     graphics_info.output_mode = most_appropriate_info;
-    #ifdef DEBUG
-    Print(L"Option #%d selected: w: %d, h: %d, pixel format: %d\n",
-          *mode,
-          most_appropriate_info.HorizontalResolution, most_appropriate_info.VerticalResolution,
-          most_appropriate_info.PixelFormat);
-    #endif
     return EFI_SUCCESS;
 }
 
@@ -102,4 +92,8 @@ void red_screen() {
 
 void green_screen() {
     fill_screen(0xff006a44);
+}
+
+void blue_screen() {
+    fill_screen(0xff0000ff);
 }

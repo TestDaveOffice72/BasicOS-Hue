@@ -1,7 +1,8 @@
 ARCH          = x86_64
 
+OUTDIR        = bin
 HEADERS       = src/kernel.h
-OBJS          = src/main.o src/graphics.o src/interrupts.o
+OBJS          = $(patsubst src/%.c,$(OUTDIR)/%.o,$(wildcard src/*.c))
 
 EFIINC        = /usr/include/efi
 EFIINCS       = -I$(EFIINC) -I$(EFIINC)/$(ARCH) -I$(EFIINC)/protocol
@@ -11,38 +12,26 @@ OVMF          = /usr/share/ovmf/ovmf_x64.bin
 QEMU_OPTS     = -enable-kvm -m 64 -device VGA
 
 CFLAGS        = $(EFIINCS) -xc -std=c11 -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
--Wall -Wno-incompatible-library-redeclaration -O2 -flto
-
+-Wall -Wno-incompatible-library-redeclaration -O3 -flto
 ifeq ($(ARCH),x86_64)
   CFLAGS += -DHAVE_USE_MS_ABI
 endif
-
-LD            = $(CC)
 LDFLAGS       = -fuse-ld=gold -flto -nostdlib -Wl,-znocombreloc,-T,$(EFI_LDS),-shared,-Bsymbolic,-L,/usr/lib
-DD            = dd status=none
+LD            = $(CC)
 
-all: image.img
+all: $(OUTDIR)/huehuehuehuehue.efi
 
-run: image.img
-	qemu-system-$(ARCH) -bios $(OVMF) -drive file=$<,if=ide $(QEMU_OPTS)
 
-image.img: data.img
-	$(DD) if=/dev/zero of=$@ bs=512 count=93750
-	parted $@ -s -a minimal mklabel gpt
-	parted $@ -s -a minimal mkpart EFI FAT16 2048s 93716s
-	parted $@ -s -a minimal toggle 1 boot
-	$(DD) if=data.img of=$@ bs=512 count=91669 seek=2048 conv=notrunc
+run: $(OUTDIR)/huehuehuehuehue.efi
+	qemu-system-$(ARCH) -bios $(OVMF) -drive file=fat:$(OUTDIR),format=raw $(QEMU_OPTS)
 
-data.img: huehuehuehuehue.efi
-	$(DD) if=/dev/zero of=$@ bs=512 count=91669
-	mformat -i $@ -h 32 -t 32 -n 64 -c 1
-	mcopy -i $@ $< ::/
+$(OUTDIR)/huehuehuehuehue.so: $(OBJS) $(EFI_CRT_OBJS)
+	$(LD) $(LDFLAGS) -o $@ $? -lgnuefi
 
-huehuehuehuehue.so: $(OBJS) $(EFI_CRT_OBJS)
-	$(LD) $(LDFLAGS) -o $@ $? -lefi -lgnuefi
-
-%.efi: %.so
+$(OUTDIR)/%.efi: $(OUTDIR)/%.so
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym  -j .rel -j .rela -j .reloc --target=efi-app-$(ARCH) $^ $@
+	strip -s $@
 
-%.o: %.c $(HEADERS)
+$(OBJS): $(OUTDIR)/%.o: src/%.c $(HEADERS)
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
