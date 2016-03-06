@@ -11,26 +11,35 @@ EFI_LDS       = /usr/lib/elf_$(ARCH)_efi.lds
 OVMF          = /usr/share/ovmf/ovmf_x64.bin
 QEMU_OPTS     = -enable-kvm -m 64 -device VGA
 
-CFLAGS        = $(EFIINCS) -xc -std=c11 -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
--Wall -Wno-incompatible-library-redeclaration -O3 -flto
+CFLAGS        = $(EFIINCS) -xc -std=c11 -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -Wall -Wno-incompatible-library-redeclaration
 ifeq ($(ARCH),x86_64)
   CFLAGS += -DHAVE_USE_MS_ABI
 endif
-LDFLAGS       = -fuse-ld=gold -flto -nostdlib -Wl,-znocombreloc,-T,$(EFI_LDS),-shared,-Bsymbolic,-L,/usr/lib
+LDFLAGS       = -fuse-ld=gold -fpic -nostdlib -Wl,-znocombreloc,-T,$(EFI_LDS),-shared,-Bsymbolic,-L,/usr/lib
 LD            = $(CC)
 
-all: $(OUTDIR)/huehuehuehuehue.efi
+ifdef DEBUG
+  CFLAGS += -g
+else
+  CFLAGS += -O3 -flto
+  LDFLAGS += -flto
+endif
 
+all: $(OUTDIR)/huehuehuehuehue.efi $(OUTDIR)/huehuehuehuehue.sym
 
-run: $(OUTDIR)/huehuehuehuehue.efi
+run: all
 	qemu-system-$(ARCH) -bios $(OVMF) -drive file=fat:$(OUTDIR),format=raw $(QEMU_OPTS)
 
 $(OUTDIR)/huehuehuehuehue.so: $(OBJS) $(EFI_CRT_OBJS)
-	$(LD) $(LDFLAGS) -o $@ $? -lgnuefi
+# TODO: remove -lefi in non-debug builds
+	$(LD) $(LDFLAGS) -o $@ $^ -lgnuefi
 
 $(OUTDIR)/%.efi: $(OUTDIR)/%.so
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym  -j .rel -j .rela -j .reloc --target=efi-app-$(ARCH) $^ $@
 	strip -s $@
+
+$(OUTDIR)/%.sym: $(OUTDIR)/%.so
+	objcopy --only-keep-debug $< $@
 
 $(OBJS): $(OUTDIR)/%.o: src/%.c $(HEADERS)
 	@mkdir -p $(@D)

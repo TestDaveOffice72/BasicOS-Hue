@@ -7,3 +7,4 @@
 #define NAKED __attribute__((naked))
 
 KAPI int kmemcmp(const void *d1, const void *d2, uint64_t len);
+KAPI void kmemcpy(void *dest, const void *src, uint64_t len);

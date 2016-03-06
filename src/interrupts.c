@@ -7,13 +7,12 @@
  *          1. Reduce number of instructions necessary for common syscalls; and
  *          2. Have less clobbered registers.
  *     * The 129th interrupt is for misc software interrupts: this is where rarely used interrupts
- *     go and these use DOS-like model for selecting exact function.
+ *     go and these use DOS-like model (i.e. number in some register) for selecting exact function.
  */
 #include "kernel.h"
 #include "acpi.h"
 #include "uefi.h"
 #include "handlers.h"
-
 
 struct interrupt_state interrupt_state;
 
@@ -22,33 +21,44 @@ struct IDT {
     uint64_t offset;
 } __attribute__((packed));
 
-// FIXME
 KAPI EFI_STATUS init_apic();
 
-KAPI void
-ioapic_redirect_irq(uint8_t idx, uint8_t into) {
-    // FIXME:
-    // Set the ID of local APIC module which will be handling the interrupts.
-    // InitializeLib(boot_state.image_handle, boot_state.system_table);
-    // Print(L"ACPI signature %d\n", acpi_table->Revision);
-    // uint32_t selector = 0x10 + idx * 2 + 1;
-    // uint32_t *data_ptr = interrupt_state.ioapic_base + 1;
-    // *interrupt_state.ioapic_base = 1;
-    // Print(L"IOAPIC base: %x\n", interrupt_state.ioapic_base);
-
-    // uint32_t ioapic_data = *data_ptr;
-    // *data_ptr = (ioapic_data & 0x00ffFFFF) | (apic_id << 24);
-    // // Set the information about the IRQ
-    // *interrupt_state.ioapic_base = selector - 1;
-    // ioapic_data = *data_ptr;
-    // ioapic_data &= ~0x1ffff;
-    // // The IRQ this is mapped into; from 0x10 to 0xfe.
-    // ioapic_data |= into & 0xff;
-    // ioapic_data |= 0x7 << 8; // fixed delivery mode
-    // ioapic_data |= 1 << 11; // physical destination mode
-    // *data_ptr = ioapic_data;
+KAPI uint32_t
+ioapic_read(uint8_t reg) {
+    uint32_t *data = (uint32_t *)((uint64_t)interrupt_state.apic_info.io_apic_address | 0x10);
+    *interrupt_state.apic_info.io_apic_address = reg;
+    return *data;
 }
 
+KAPI void
+ioapic_write(uint8_t reg, uint32_t val) {
+    uint32_t *data = (uint32_t *)((uint64_t)interrupt_state.apic_info.io_apic_address | 0x10);
+    *interrupt_state.apic_info.io_apic_address = reg;
+    *data = val;
+}
+
+KAPI void
+ioapic_setup(uint64_t apic_id, uint8_t from, uint8_t to)
+{
+    const uint32_t reg = 0x10 + from * 2;
+    uint32_t high = ioapic_read(reg + 1);
+    // set APIC ID
+    high &= ~0xff000000;
+    ioapic_write(reg + 1, high | (apic_id << 24));
+    uint32_t low = ioapic_read(reg);
+    low &= ~0x1ffff;
+    ioapic_write(reg, low | to);
+}
+
+
+KAPI void set_interrupt(struct idt_descriptor* descr, void (*handler)()) {
+    uint64_t address = (uint64_t)handler;
+    descr->selector = 0x28;
+    descr->flags = 0x8E00;
+    descr->offset_1 = address & 0xffff;
+    descr->offset_3 = address >> 32;
+    descr->offset_2 = address >> 16;
+}
 
 KAPI EFI_STATUS
 init_interrupts()
@@ -56,58 +66,39 @@ init_interrupts()
     EFI_STATUS status = init_apic();
     if(EFI_ERROR(status)) return status;
 
-    struct IDT idt = {0};
+    struct IDT idt;
     __asm__("sidt %0":"=m"(idt));
     interrupt_state.idt_limit = idt.limit;
     interrupt_state.idt_address = (struct idt_descriptor *)idt.offset;
+    uint32_t vectors = idt.limit / sizeof(struct idt_descriptor);
 
-    for(int i = 0; i < 24; i += 1) {
-        ioapic_redirect_irq(i, 231 + i);
+    // Set all interrupts to unknown handler first.
+    for(int i = 0; i < vectors; i++){
+        set_interrupt(interrupt_state.idt_address + i, unknown_handler);
     }
 
-    struct idt_descriptor unknown_descriptor = {
-        .offset_1 = (uint64_t)unknown_handler & 0xFFFF,
-        .offset_2 = (((uint64_t)unknown_handler) >> 16) & 0xFFFF,
-        .offset_3 = (((uint64_t)unknown_handler) >> 32),
-        .selector = 0x28,
-        .reserved = 0,
-        .flags = 0x8E00
-    };
-    for(int i = 32; i < 231; i += 1) {
-        interrupt_state.idt_address[i] = unknown_descriptor;
+    for(int i = 32; i < 130; i++){
+        set_interrupt(interrupt_state.idt_address + i, unknown_software_handler);
     }
 
-    struct idt_descriptor apic_descriptor = {
-        .offset_1 = (uint64_t)apic_handler & 0xFFFF,
-        .offset_2 = (((uint64_t)apic_handler) >> 16) & 0xFFFF,
-        .offset_3 = (((uint64_t)apic_handler) >> 32),
-        .selector = 0x28,
-        .reserved = 0,
-        .flags = 0x8E00
-    };
-    for(int i = 231; i < 256; i += 1) {
-        interrupt_state.idt_address[i] = apic_descriptor;
-    }
-    // FIXME: we currently use int8 handler for all exception interrupts.
-    for(int i = 0; i < 20; i += 1) {
-        if(i == 9) continue;
-        interrupt_state.idt_address[i].offset_1 = (uint64_t)int8_handler & 0xFFFF;
-        interrupt_state.idt_address[i].offset_2 = (((uint64_t)int8_handler) >> 16) & 0xFFFF;
-        interrupt_state.idt_address[i].offset_3 = (((uint64_t)int8_handler) >> 32);
-        interrupt_state.idt_address[i].selector = 0x28;
-        interrupt_state.idt_address[i].flags = 0x8E00;
+    for(int i = 0; i < 24; i++){
+        // ioapic_redirect_irq(i, 0xfe - i);
+        set_interrupt(interrupt_state.idt_address + (0xfe - i), unknown_ioapic_handler);
+        ioapic_setup(interrupt_state.apic_info.local_apic_id, i, 0xfe - i);
     }
 
+    set_interrupt(interrupt_state.idt_address + 13, int13_handler);
+    set_interrupt(interrupt_state.idt_address + 32, int32_handler);
+    set_interrupt(interrupt_state.idt_address + 33, int33_handler);
+
+    __asm__("int $33");
+    __asm__("sti");
     return EFI_SUCCESS;
 }
 
-inline void
-outb(uint8_t port, uint8_t data)
-{
-    __asm__("out %0, %1" :: "a"(data), "i"(port));
-}
+#define outb(p, d) {__asm__ volatile("outb %0, %1" :: "a"((uint8_t)d), "i"(p));}
 
-inline void
+static inline void
 disable_pic()
 {
     // Setup the old technology
@@ -137,14 +128,11 @@ init_apic()
 
     // Collect information from ACPI (argh, annoying)
     struct XSDTHeader *apic_info = find_acpi_table((uint8_t *)"APIC");
-    if(apic_info == NULL) {
-        return EFI_NOT_FOUND;
-    }
+    if(apic_info == NULL) return EFI_NOT_FOUND;
     uint32_t flags = *((uint32_t*)(apic_info + 1) + 1);
     uint32_t apic_data_len = apic_info->length - sizeof(struct XSDTHeader) - 8;
     uint8_t *apic_entry = ((uint8_t *)(apic_info + 1)) + 8;
-
-    while(apic_data_len > 0) {
+    while(true) {
         uint8_t type = *apic_entry;
         uint8_t len = *(apic_entry + 1);
         switch(type){
@@ -158,7 +146,8 @@ init_apic()
 
             case 1: { // I/O APIC
                 interrupt_state.apic_info.io_apic_id = *(apic_entry + 2);
-                interrupt_state.apic_info.io_apic_address = *(uint32_t *)(apic_entry + 4);
+                uint32_t io_apic_address = *(uint32_t *)(apic_entry + 4);
+                interrupt_state.apic_info.io_apic_address = (uint32_t *)(uint64_t)io_apic_address;
                 interrupt_state.apic_info.gsi_base = *(uint32_t *)(apic_entry + 8);
                 break;
             }
@@ -168,6 +157,7 @@ init_apic()
                     // university kernel.
             default: break;
         }
+        if(len >= apic_data_len) break;
         apic_data_len -= len;
         apic_entry += len;
     }
@@ -181,8 +171,5 @@ init_apic()
     // Enable soft APIC register.
     uint64_t svr_register = cpu_read_msr(0x80F);
     cpu_write_msr(0x80F, svr_register | SVR_APIC_SOFT_ENABLE);
-
-    // FIXME: need to retrieve proper address from ACPI
-    // interrupt_state.ioapic_base = (uint32_t *)0xfec00000;
     return EFI_SUCCESS;
 }

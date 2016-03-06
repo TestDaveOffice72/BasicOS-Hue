@@ -7,3 +7,11 @@ KAPI int kmemcmp(const void *d1, const void *d2, uint64_t len) {
     }
     return 0;
 }
+
+KAPI void kmemcpy(void *dest, const void *src, uint64_t len) {
+    uint8_t *d = dest;
+    const uint8_t *s = src;
+    for(uint64_t i = 0; i < len; i++, d++, s++) {
+        *d = *s;
+    }
+}

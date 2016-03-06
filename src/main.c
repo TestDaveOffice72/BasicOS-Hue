@@ -66,7 +66,8 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
         }
     }
 
+
     // Once we’re done we poweroff the machine.
     system_table->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
-    for(;;) __asm__("hlt");
+    for(;;) __asm__ volatile("hlt");
 }

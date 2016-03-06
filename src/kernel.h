@@ -52,7 +52,7 @@ struct apic_info {
     bool has_pic;
     uint8_t local_apic_id;
     uint8_t io_apic_id;
-    uint32_t io_apic_address;
+    uint32_t *io_apic_address;
     uint32_t gsi_base;
 };
 
