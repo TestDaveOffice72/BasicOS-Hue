@@ -2,15 +2,16 @@
 #include <efiprot.h>
 
 #include "kernel.h"
+#include "uefi.h"
 
 struct boot_state boot_state;
 
 EFI_STATUS
-efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
+efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
 {
+    image_handle = ih;
+    system_table = st;
     EFI_STATUS status;
-    boot_state.image_handle = ImageHandle;
-    boot_state.system_table = SystemTable;
 
     status = init_cpu();
     ASSERT_EFI_STATUS(status);
@@ -18,7 +19,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     // Initialize graphics
     EFI_GRAPHICS_OUTPUT_PROTOCOL *graphics;
     EFI_GUID graphics_proto = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-    status = SystemTable->BootServices->LocateProtocol(&graphics_proto, NULL, (void **)&graphics);
+    status = system_table->BootServices->LocateProtocol(&graphics_proto, NULL, (void **)&graphics);
     ASSERT_EFI_STATUS(status);
     status = init_graphics(graphics);
     ASSERT_EFI_STATUS(status);
@@ -66,6 +67,6 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     }
 
     // Once we’re done we poweroff the machine.
-    SystemTable->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
+    system_table->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
     for(;;) __asm__("hlt");
 }
