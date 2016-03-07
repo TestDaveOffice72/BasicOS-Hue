@@ -1,6 +1,12 @@
 void unknown_handler();
 void unknown_software_handler();
-void unknown_ioapic_handler();
+
+/*******
+ * IRQ *
+ *******/
+void irq1_handler();
+
+
 void int13_handler();
 // NOOP interrupt
 void int32_handler();

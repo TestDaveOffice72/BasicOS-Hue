@@ -81,22 +81,16 @@ init_interrupts()
         set_interrupt(interrupt_state.idt_address + i, unknown_software_handler);
     }
 
-    for(int i = 0; i < 24; i++){
-        // ioapic_redirect_irq(i, 0xfe - i);
-        set_interrupt(interrupt_state.idt_address + (0xfe - i), unknown_ioapic_handler);
-        ioapic_setup(interrupt_state.apic_info.local_apic_id, i, 0xfe - i);
-    }
+    set_interrupt(interrupt_state.idt_address + (0xfe - 1), irq1_handler);
+    ioapic_setup(interrupt_state.apic_info.local_apic_id, 1, 0xfe - 1);
 
     set_interrupt(interrupt_state.idt_address + 13, int13_handler);
     set_interrupt(interrupt_state.idt_address + 32, int32_handler);
     set_interrupt(interrupt_state.idt_address + 33, int33_handler);
 
-    __asm__("int $33");
     __asm__("sti");
     return EFI_SUCCESS;
 }
-
-#define outb(p, d) {__asm__ volatile("outb %0, %1" :: "a"((uint8_t)d), "i"(p));}
 
 static inline void
 disable_pic()
