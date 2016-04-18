@@ -1,18 +1,17 @@
-#include "kernel.h"
+#include "cpu.h"
 
-struct cpu_state cpu_state;
+const uint32_t HAS_APIC = 1 << 9;
+const uint32_t HAS_X2APIC = 1 << 21;
+const uint32_t HAS_MSR = 1 << 5;
 
 KAPI EFI_STATUS
-init_cpu()
+init_cpu(struct cpu *cpu)
 {
-    const uint32_t HAS_APIC = 1 << 9;
-    const uint32_t HAS_X2APIC = 1 << 21;
-    const uint32_t HAS_MSR = 1 << 5;
     uint32_t b, c, d, a = 1;
     __asm__("cpuid" : "=d"(d), "=b"(b), "=c"(c), "+a"(a));
-    cpu_state.has_apic = (d & HAS_APIC) != 0;
-    cpu_state.has_x2apic = (c & HAS_X2APIC) != 0;
-    cpu_state.has_msr = (d & HAS_MSR) != 0;
+    cpu->has_apic = (d & HAS_APIC) != 0;
+    cpu->has_x2apic = (c & HAS_X2APIC) != 0;
+    cpu->has_msr = (d & HAS_MSR) != 0;
     return EFI_SUCCESS;
 }
 

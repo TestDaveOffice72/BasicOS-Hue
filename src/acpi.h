@@ -57,4 +57,4 @@ struct XSDTHeader {
 // See table 5-5 in ACPI specification for signatures.
 // More common are: "APIC", "HPET", "FACP" and "SSDT"
 KAPI struct XSDTHeader*
-find_acpi_table(uint8_t signature[4]);
+find_acpi_table(const struct uefi *uefi, uint8_t signature[4]);

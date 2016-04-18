@@ -1,7 +1,7 @@
 ARCH          = x86_64
 
 OUTDIR        = bin
-HEADERS       = src/kernel.h
+HEADERS       = $(wildcard src/*.h)
 OBJS          = $(patsubst src/%.c,$(OUTDIR)/%.o,$(wildcard src/*.c))
 
 EFIINC        = /usr/include/efi

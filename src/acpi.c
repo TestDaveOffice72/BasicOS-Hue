@@ -1,10 +1,10 @@
 #include "acpi.h"
 
 KAPI struct XSDTHeader*
-find_acpi_table(uint8_t signature[4])
+find_acpi_table(const struct uefi *uefi, uint8_t signature[4])
 {
     EFI_GUID acpi_guid = EFI_ACPI_TABLE_GUID;
-    struct RSDP* acpi_table = find_configuration_table(&acpi_guid);
+    struct RSDP* acpi_table = find_configuration_table(uefi, &acpi_guid);
     struct XSDTHeader* xsdt_table = (struct XSDTHeader *)acpi_table->xsdt;
     uint64_t* xsdt_table_data = (uint64_t *)(xsdt_table + 1);
     uint64_t xsdt_entries = (xsdt_table->length - sizeof(struct XSDTHeader)) / 8;

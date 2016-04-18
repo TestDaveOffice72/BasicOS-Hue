@@ -11,85 +11,109 @@
  */
 #include "kernel.h"
 #include "acpi.h"
-#include "uefi.h"
+#include "cpu.h"
 #include "handlers.h"
+#include "uefi.h"
 
-struct interrupt_state interrupt_state;
+
+struct idt_descriptor {
+   uint16_t offset_1;    // offset bits 0..15
+   uint16_t selector;    // a code segment selector in GDT or LDT
+   uint16_t flags;       // various flags, namely:
+                         // 0..2: Interrupt stack table
+                         // 3..7: zero
+                         // 8..11: type
+                         // 12: zero
+                         // 13..14: descriptor privilege level
+                         // 15: segment present flag
+   uint16_t offset_2;    // offset bits 16..31
+   uint32_t offset_3;    // offset bits 32..63
+   uint32_t reserved;    // unused, set to 0
+} __attribute__((packed));
 
 struct IDT {
     uint16_t limit;
     uint64_t offset;
 } __attribute__((packed));
 
-KAPI EFI_STATUS init_apic();
+KAPI EFI_STATUS init_apic(struct kernel *kernel);
+KAPI void ioapic_setup(struct interrupts *is, uint64_t apic_id, uint8_t from, uint8_t to);
+KAPI void set_interrupt(struct idt_descriptor* descr, void (*handler)());
 
+KAPI EFI_STATUS
+init_interrupts(struct kernel *kernel)
+{
+    struct interrupts *is = &kernel->interrupts;
+    EFI_STATUS status = init_apic(kernel);
+    if(EFI_ERROR(status)) return status;
+
+    struct IDT idt;
+    __asm__("sidt %0":"=m"(idt));
+    is->idt_limit = idt.limit;
+    is->idt_address = (struct idt_descriptor *)idt.offset;
+    uint32_t vectors = idt.limit / sizeof(struct idt_descriptor);
+
+    // Set all interrupts to unknown handler first.
+    for(int i = 0; i < vectors; i++){
+        set_interrupt(is->idt_address + i, unknown_handler);
+    }
+
+    for(int i = 32; i < 130; i++){
+        set_interrupt(is->idt_address + i, unknown_software_handler);
+    }
+
+    set_interrupt(is->idt_address + (0xfe - 1), irq1_handler);
+    ioapic_setup(is, is->apic.local_apic_id, 1, 0xfe - 1);
+
+    set_interrupt(is->idt_address + 13, int13_handler);
+    set_interrupt(is->idt_address + 32, int32_handler);
+    set_interrupt(is->idt_address + 33, int33_handler);
+
+    __asm__("sti");
+    return EFI_SUCCESS;
+}
+
+
+// ------------------------------------------------------------------------------------------------
 KAPI uint32_t
-ioapic_read(uint8_t reg) {
-    uint32_t *data = (uint32_t *)((uint64_t)interrupt_state.apic_info.io_apic_address | 0x10);
-    *interrupt_state.apic_info.io_apic_address = reg;
+ioapic_read(const struct interrupts *is, uint8_t reg)
+{
+    uint32_t *data = (uint32_t *)((uint64_t)is->apic.io_apic_address | 0x10);
+    *is->apic.io_apic_address = reg;
     return *data;
 }
 
 KAPI void
-ioapic_write(uint8_t reg, uint32_t val) {
-    uint32_t *data = (uint32_t *)((uint64_t)interrupt_state.apic_info.io_apic_address | 0x10);
-    *interrupt_state.apic_info.io_apic_address = reg;
+ioapic_write(const struct interrupts *is, uint8_t reg, uint32_t val)
+{
+    uint32_t *data = (uint32_t *)((uint64_t)is->apic.io_apic_address | 0x10);
+    *is->apic.io_apic_address = reg;
     *data = val;
 }
 
 KAPI void
-ioapic_setup(uint64_t apic_id, uint8_t from, uint8_t to)
+ioapic_setup(struct interrupts *is, uint64_t apic_id, uint8_t from, uint8_t to)
 {
     const uint32_t reg = 0x10 + from * 2;
-    uint32_t high = ioapic_read(reg + 1);
+    uint32_t high = ioapic_read(is, reg + 1);
     // set APIC ID
     high &= ~0xff000000;
-    ioapic_write(reg + 1, high | (apic_id << 24));
-    uint32_t low = ioapic_read(reg);
+    ioapic_write(is, reg + 1, high | (apic_id << 24));
+    uint32_t low = ioapic_read(is, reg);
     low &= ~0x1ffff;
-    ioapic_write(reg, low | to);
+    ioapic_write(is, reg, low | to);
 }
 
 
-KAPI void set_interrupt(struct idt_descriptor* descr, void (*handler)()) {
+KAPI void
+set_interrupt(struct idt_descriptor* descr, void (*handler)())
+{
     uint64_t address = (uint64_t)handler;
     descr->selector = 0x28;
     descr->flags = 0x8E00;
     descr->offset_1 = address & 0xffff;
     descr->offset_3 = address >> 32;
     descr->offset_2 = address >> 16;
-}
-
-KAPI EFI_STATUS
-init_interrupts()
-{
-    EFI_STATUS status = init_apic();
-    if(EFI_ERROR(status)) return status;
-
-    struct IDT idt;
-    __asm__("sidt %0":"=m"(idt));
-    interrupt_state.idt_limit = idt.limit;
-    interrupt_state.idt_address = (struct idt_descriptor *)idt.offset;
-    uint32_t vectors = idt.limit / sizeof(struct idt_descriptor);
-
-    // Set all interrupts to unknown handler first.
-    for(int i = 0; i < vectors; i++){
-        set_interrupt(interrupt_state.idt_address + i, unknown_handler);
-    }
-
-    for(int i = 32; i < 130; i++){
-        set_interrupt(interrupt_state.idt_address + i, unknown_software_handler);
-    }
-
-    set_interrupt(interrupt_state.idt_address + (0xfe - 1), irq1_handler);
-    ioapic_setup(interrupt_state.apic_info.local_apic_id, 1, 0xfe - 1);
-
-    set_interrupt(interrupt_state.idt_address + 13, int13_handler);
-    set_interrupt(interrupt_state.idt_address + 32, int32_handler);
-    set_interrupt(interrupt_state.idt_address + 33, int33_handler);
-
-    __asm__("sti");
-    return EFI_SUCCESS;
 }
 
 static inline void
@@ -112,16 +136,16 @@ disable_pic()
 }
 
 KAPI EFI_STATUS
-init_apic()
+init_apic(struct kernel *kernel)
 {
     const uint32_t APIC_ENABLED = 1 << 11;
     const uint32_t X2APIC_ENABLED = 1 << 10;
     const uint32_t SVR_APIC_SOFT_ENABLE = 1 << 8;
     const uint32_t FLAGS_HAS_LEGACY_PIC = 1;
-    if(!cpu_state.has_apic || !cpu_state.has_x2apic) return EFI_UNSUPPORTED;
+    if(!kernel->cpu.has_apic || !kernel->cpu.has_x2apic) return EFI_UNSUPPORTED;
 
     // Collect information from ACPI (argh, annoying)
-    struct XSDTHeader *apic_info = find_acpi_table((uint8_t *)"APIC");
+    struct XSDTHeader *apic_info = find_acpi_table(&kernel->uefi, (uint8_t *)"APIC");
     if(apic_info == NULL) return EFI_NOT_FOUND;
     uint32_t flags = *((uint32_t*)(apic_info + 1) + 1);
     uint32_t apic_data_len = apic_info->length - sizeof(struct XSDTHeader) - 8;
@@ -134,15 +158,15 @@ init_apic()
             case 7: return EFI_UNSUPPORTED;
 
             case 0: { // processor local APIC
-                interrupt_state.apic_info.local_apic_id = *(apic_entry + 3);
+                kernel->interrupts.apic.local_apic_id = *(apic_entry + 3);
                 break;
             }
 
             case 1: { // I/O APIC
-                interrupt_state.apic_info.io_apic_id = *(apic_entry + 2);
+                kernel->interrupts.apic.io_apic_id = *(apic_entry + 2);
                 uint32_t io_apic_address = *(uint32_t *)(apic_entry + 4);
-                interrupt_state.apic_info.io_apic_address = (uint32_t *)(uint64_t)io_apic_address;
-                interrupt_state.apic_info.gsi_base = *(uint32_t *)(apic_entry + 8);
+                kernel->interrupts.apic.io_apic_address = (uint32_t *)(uint64_t)io_apic_address;
+                kernel->interrupts.apic.gsi_base = *(uint32_t *)(apic_entry + 8);
                 break;
             }
 

@@ -60,8 +60,8 @@ int33_handler()
     __asm__("1: hlt; jmp 1b;");
 }
 
-NAKED void
-irq1_handler()
+__attribute__((naked, ms_abi)) void
+irq1_handler(uint32_t a)
 {
     __asm__(".intel_syntax;"
             PUSHALL_KAPI
