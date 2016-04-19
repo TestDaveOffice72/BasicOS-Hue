@@ -44,3 +44,16 @@ $(OUTDIR)/%.sym: $(OUTDIR)/%.so
 $(OBJS): $(OUTDIR)/%.o: src/%.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Utility rules for generating assembly and llvm-ir
+ASMS = $(patsubst $(OUTDIR)/%.o,asm/%.s,$(OBJS))
+LLIRS = $(patsubst $(OUTDIR)/%.o,asm/%.ll,$(OBJS))
+
+asm: $(ASMS) $(LLIRS)
+
+$(ASMS): asm/%.s: src/%.c $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(filter-out -flto,$(CFLAGS)) -S -o $@ $<
+$(LLIRS): asm/%.ll: src/%.c $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(filter-out -flto,$(CFLAGS)) -S -emit-llvm -o $@ $<
