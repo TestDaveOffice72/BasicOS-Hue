@@ -9,25 +9,33 @@ struct kernel kernel;
 EFI_STATUS
 efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
 {
-
     kernel.uefi.image_handle = ih;
     kernel.uefi.system_table = st;
     EFI_STATUS status;
 
+    status = init_serial(&kernel.uefi, &kernel.serial);
+    ASSERT_EFI_STATUS(status);
+    serial_print("Kernel booting\n");
+
+
+    serial_print("CPU…\n");
     status = init_cpu(&kernel.cpu);
     ASSERT_EFI_STATUS(status);
 
+    serial_print("Graphics…\n");
     // Initialize graphics
     status = init_graphics(&kernel.uefi, &kernel.graphics);
     ASSERT_EFI_STATUS(status);
 
-    // Initialize memory management subsystem and exit
-    status = init_memory(&kernel);
-    ASSERT_EFI_STATUS(status);
-
+    serial_print("Interrupts…\n");
     // Init interrupts
     status = init_interrupts(&kernel);
     ASSERT_EFI_STATUS(status);
+
+    // serial_print("Memory…\n");
+    // // Initialize memory management subsystem and exit
+    // status = init_memory(&kernel);
+    // ASSERT_EFI_STATUS(status);
 
     // Some work, blends in the lithuanian flag
     for(uint8_t o = 0; o <= 100; o += 1) {
@@ -57,7 +65,9 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
     }
 
 
+    serial_print("Reached end of efi_main!\n");
     // Once we’re done we poweroff the machine.
     st->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
+    serial_print("Shutdown didn’t work!!!\n");
     for(;;) __asm__ volatile("hlt");
 }

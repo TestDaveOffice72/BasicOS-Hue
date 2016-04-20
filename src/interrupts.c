@@ -44,6 +44,7 @@ KAPI EFI_STATUS
 init_interrupts(struct kernel *kernel)
 {
     struct interrupts *is = &kernel->interrupts;
+    serial_print("\tAPIC\n");
     EFI_STATUS status = init_apic(kernel);
     if(EFI_ERROR(status)) return status;
 
@@ -53,20 +54,26 @@ init_interrupts(struct kernel *kernel)
     is->idt_address = (struct idt_descriptor *)idt.offset;
     uint32_t vectors = idt.limit / sizeof(struct idt_descriptor);
 
+    serial_print("\tSetting all to unknown handler\n");
     // Set all interrupts to unknown handler first.
     for(int i = 0; i < vectors; i++){
         set_interrupt(is->idt_address + i, unknown_handler);
     }
 
+    serial_print("\tSetting some to unknown software handler\n");
     for(int i = 32; i < 130; i++){
         set_interrupt(is->idt_address + i, unknown_software_handler);
     }
 
+    serial_print("\tSetting IRQ1 handler\n");
     set_interrupt(is->idt_address + (0xfe - 1), irq1_handler);
     ioapic_setup(is, is->apic.local_apic_id, 1, 0xfe - 1);
 
+    serial_print("\tSetting INT13 handler\n");
     set_interrupt(is->idt_address + 13, int13_handler);
+    serial_print("\tSetting INT32 handler\n");
     set_interrupt(is->idt_address + 32, int32_handler);
+    serial_print("\tSetting INT33 handler\n");
     set_interrupt(is->idt_address + 33, int33_handler);
 
     __asm__("sti");
@@ -120,19 +127,19 @@ static inline void
 disable_pic()
 {
     // Setup the old technology
-    outb(0x20, 0x11);
-    outb(0xa0, 0x11);
+    port_outb(0x20, 0x11);
+    port_outb(0xa0, 0x11);
     // Setup it more (interrupt offsets)
-    outb(0x21, 0xef);
-    outb(0xa1, 0xf7);
+    port_outb(0x21, 0xef);
+    port_outb(0xa1, 0xf7);
     // Even more (master/slave wiring)
-    outb(0x21, 4);
-    outb(0xa1, 2);
-    outb(0x21, 1);
-    outb(0xa1, 1);
+    port_outb(0x21, 4);
+    port_outb(0xa1, 2);
+    port_outb(0x21, 1);
+    port_outb(0xa1, 1);
     // And tell them to shut their traps, for ever.
-    outb(0xa1, 0xff);
-    outb(0x21, 0xff);
+    port_outb(0xa1, 0xff);
+    port_outb(0x21, 0xff);
 }
 
 KAPI EFI_STATUS

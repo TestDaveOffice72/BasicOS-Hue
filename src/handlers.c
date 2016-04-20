@@ -76,16 +76,13 @@ KAPI void
 irq1_inner()
 {
     uint8_t k = 0;
-    while(k == 0)
-        inb(0x60, k);
+    while((k = port_inb(0x60)) == 0);
     fill_screen(0xff880000 | k);
     for(int i = 0; i < 100000; i++);
-
-    uint8_t a;
-    inb(0x61, a);
+    uint8_t a = port_inb(0x61);
     a |= 0x82;
-    outb(0x61, a);
+    port_outb(0x61, a);
     a &= 0x7f;
-    outb(0x61, a);
+    port_outb(0x61, a);
     cpu_write_msr(0x80B, 0);
 }

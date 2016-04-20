@@ -9,7 +9,7 @@ EFIINCS       = -I$(EFIINC) -I$(EFIINC)/$(ARCH) -I$(EFIINC)/protocol
 EFI_CRT_OBJS  = /usr/lib/crt0-efi-$(ARCH).o
 EFI_LDS       = /usr/lib/elf_$(ARCH)_efi.lds
 OVMF          = /usr/share/ovmf/ovmf_x64.bin
-QEMU_OPTS     = -enable-kvm -m 64 -device VGA
+QEMU_OPTS     = -enable-kvm -m 64 -serial file:debug.log -device VGA
 
 CFLAGS        = $(EFIINCS) -xc -std=c11 -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -Wall -Wno-incompatible-library-redeclaration
 ifeq ($(ARCH),x86_64)
@@ -29,6 +29,7 @@ all: $(OUTDIR)/huehuehuehuehue.efi $(OUTDIR)/huehuehuehuehue.sym
 
 run: all
 	qemu-system-$(ARCH) -bios $(OVMF) -drive file=fat:$(OUTDIR),format=raw $(QEMU_OPTS)
+	sed -n '/Kernel booting/,$$p' debug.log
 
 $(OUTDIR)/huehuehuehuehue.so: $(OBJS) $(EFI_CRT_OBJS)
 # TODO: remove -lefi in non-debug builds

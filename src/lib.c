@@ -15,3 +15,9 @@ KAPI void kmemcpy(void *dest, const void *src, uint64_t len) {
         *d = *s;
     }
 }
+
+KAPI uint64_t kstrlen(const char *data) {
+    uint64_t r;
+    for(r = 0; *data != 0; data++, r++);
+    return r;
+}
