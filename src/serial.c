@@ -46,15 +46,15 @@ init_serial(const struct uefi *uefi, struct serial *serial)
 }
 
 KAPI inline uint8_t
-read_serial_register(uint64_t base, uint64_t offset)
+read_serial_register(uint16_t offset)
 {
-    return port_inb(base + offset * SERIAL_REGISTER_STRIDE);
+    return port_inb(SERIAL_REGISTER_BASE + offset * SERIAL_REGISTER_STRIDE);
 }
 
 KAPI inline void
-write_serial_register(uint64_t base, uint64_t offset, uint8_t d)
+write_serial_register(uint16_t offset, uint8_t d)
 {
-    port_outb(base + offset * SERIAL_REGISTER_STRIDE, d);
+    port_outb(SERIAL_REGISTER_BASE + offset * SERIAL_REGISTER_STRIDE, d);
 }
 
 KAPI EFI_STATUS
@@ -66,47 +66,43 @@ init_serial_port()
     if((SERIAL_CLOCK_RATE % (SERIAL_BAUD_RATE * 16)) >= SERIAL_BAUD_RATE * 8) {
         divisor++;
     }
-
     // See if the serial port is already initialized
     bool initialized = true;
-    if ((read_serial_register(SERIAL_REGISTER_BASE, R_UART_LCR) & 0x3F) != (SERIAL_LINE_CONTROL & 0x3F)) {
+    if ((read_serial_register(R_UART_LCR) & 0x3F)
+        != (SERIAL_LINE_CONTROL & 0x3F)) {
         initialized = false;
     }
-
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_LCR, (uint8_t)(read_serial_register (SERIAL_REGISTER_BASE, R_UART_LCR) | B_UART_LCR_DLAB));
-    uint32_t current_divisor =  read_serial_register (SERIAL_REGISTER_BASE, R_UART_BAUD_HIGH) << 8;
-    current_divisor |= (UINT32) read_serial_register (SERIAL_REGISTER_BASE, R_UART_BAUD_LOW);
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_LCR, (uint8_t)(read_serial_register (SERIAL_REGISTER_BASE, R_UART_LCR) & ~B_UART_LCR_DLAB));
-
-    if (current_divisor != divisor) {
-        initialized = false;
-    }
-
+    // Calculate current divisor
+    write_serial_register(R_UART_LCR,
+        read_serial_register(R_UART_LCR) | B_UART_LCR_DLAB);
+    uint32_t current_divisor = read_serial_register(R_UART_BAUD_HIGH) << 8;
+    current_divisor |= (uint32_t)read_serial_register(R_UART_BAUD_LOW);
+    write_serial_register(R_UART_LCR,
+        read_serial_register(R_UART_LCR) & ~B_UART_LCR_DLAB);
+    // Fast path
+    initialized = initialized && current_divisor == divisor;
     if (initialized) {
         return EFI_SUCCESS;
     }
-
     // Wait for the serial port to be ready.
     // Verify that both the transmit FIFO and the shift register are empty.
-    while ((read_serial_register (SERIAL_REGISTER_BASE, R_UART_LSR) & (B_UART_LSR_TEMT | B_UART_LSR_TXRDY)) != (B_UART_LSR_TEMT | B_UART_LSR_TXRDY));
-
+    while ((read_serial_register(R_UART_LSR)
+                & (B_UART_LSR_TEMT | B_UART_LSR_TXRDY))
+            != (B_UART_LSR_TEMT | B_UART_LSR_TXRDY));
     // Configure baud rate
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_LCR, B_UART_LCR_DLAB);
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_BAUD_HIGH, (uint8_t) (divisor >> 8));
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_BAUD_LOW, (uint8_t) (divisor & 0xff));
-
+    write_serial_register(R_UART_LCR, B_UART_LCR_DLAB);
+    write_serial_register(R_UART_BAUD_HIGH, (uint8_t) (divisor >> 8));
+    write_serial_register(R_UART_BAUD_LOW, (uint8_t) (divisor & 0xff));
     // Clear DLAB and configure Data Bits, Parity, and Stop Bits.
     // Strip reserved bits from PcdSerialLineControl
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_LCR, (uint8_t)(SERIAL_LINE_CONTROL & 0x3F));
-
+    write_serial_register(R_UART_LCR, (uint8_t)(SERIAL_LINE_CONTROL & 0x3F));
     // Enable and reset FIFOs
     // Strip reserved bits from PcdSerialFifoControl
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_FCR, 0x00);
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_FCR, (uint8_t)(SERIAL_LINE_CONTROL & (B_UART_FCR_FIFOE | B_UART_FCR_FIFO64)));
-
+    write_serial_register(R_UART_FCR, 0x00);
+    write_serial_register(R_UART_FCR,
+                          (uint8_t)(SERIAL_LINE_CONTROL & (B_UART_FCR_FIFOE | B_UART_FCR_FIFO64)));
     // Put Modem Control Register(MCR) into its reset state of 0x00.
-    write_serial_register (SERIAL_REGISTER_BASE, R_UART_MCR, 0x00);
-
+    write_serial_register(R_UART_MCR, 0x00);
     return EFI_SUCCESS;
 }
 
@@ -125,9 +121,8 @@ serial_port_writable ()
             //    0    1   No cable connected.                       Wait
             //    1    0   Cable connected, but not clear to send.   Wait
             //    1    1   Cable connected, and clear to send.       Transmit
-            return (bool)((read_serial_register (SERIAL_REGISTER_BASE, R_UART_MSR)
-                        & (B_UART_MSR_DSR | B_UART_MSR_CTS))
-                    == (B_UART_MSR_DSR | B_UART_MSR_CTS));
+            return (bool)((read_serial_register(R_UART_MSR) & (B_UART_MSR_DSR | B_UART_MSR_CTS))
+                           == (B_UART_MSR_DSR | B_UART_MSR_CTS));
         } else {
             // Wait for both DSR and CTS to be set OR for DSR to be clear.
             //   DSR is set if a cable is connected.
@@ -139,9 +134,8 @@ serial_port_writable ()
             //    0    1   No cable connected.                       Transmit
             //    1    0   Cable connected, but not clear to send.   Wait
             //    1    1   Cable connected, and clar to send.        Transmit
-            return (bool)((read_serial_register (SERIAL_REGISTER_BASE, R_UART_MSR)
-                        & (B_UART_MSR_DSR | B_UART_MSR_CTS))
-                    != (B_UART_MSR_DSR));
+            return (bool)((read_serial_register(R_UART_MSR) & (B_UART_MSR_DSR | B_UART_MSR_CTS))
+                           != (B_UART_MSR_DSR));
         }
     }
     return true;
@@ -151,21 +145,16 @@ serial_port_writable ()
 KAPI uint64_t
 serial_port_write(uint8_t *buffer, uint64_t size)
 {
-    if (buffer == NULL) {
-        return 0;
-    }
-
+    if (buffer == NULL) { return 0; }
     if (size == 0) {
         // Flush the hardware
         //
         // Wait for both the transmit FIFO and shift register empty.
-        while ((read_serial_register(SERIAL_REGISTER_BASE, R_UART_LSR)
-                    & (B_UART_LSR_TEMT | B_UART_LSR_TXRDY))
+        while ((read_serial_register(R_UART_LSR) & (B_UART_LSR_TEMT | B_UART_LSR_TXRDY))
                 != (B_UART_LSR_TEMT | B_UART_LSR_TXRDY));
         while (!serial_port_writable());
         return 0;
     }
-
     // Compute the maximum size of the Tx FIFO
     uint64_t fifo_size = 1;
     if ((SERIAL_FIFO_CONTROL & B_UART_FCR_FIFOE) != 0) {
@@ -175,19 +164,16 @@ serial_port_write(uint8_t *buffer, uint64_t size)
             fifo_size = SERIAL_EXTENDED_FIFO_TX_SIZE;
         }
     }
-
     while (size != 0) {
-        //
         // Wait for the serial port to be ready, to make sure both the transmit FIFO
         // and shift register empty.
-        //
-        while ((read_serial_register (SERIAL_REGISTER_BASE, R_UART_LSR) & B_UART_LSR_TEMT) == 0);
+        while ((read_serial_register(R_UART_LSR) & B_UART_LSR_TEMT) == 0);
         // Fill then entire Tx FIFO
         for (uint64_t index = 0; index < fifo_size && size != 0; index++, size--, buffer++) {
             // Wait for the hardware flow control signal
             while (!serial_port_writable());
             // Write byte to the transmit buffer.
-            write_serial_register (SERIAL_REGISTER_BASE, R_UART_TXBUF, *buffer);
+            write_serial_register(R_UART_TXBUF, *buffer);
         }
     }
     return size;
