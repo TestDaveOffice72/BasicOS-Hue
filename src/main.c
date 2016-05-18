@@ -32,10 +32,10 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
     status = init_interrupts(&kernel);
     ASSERT_EFI_STATUS(status);
 
-    // serial_print("Memory…\n");
+    serial_print("Memory…\n");
     // // Initialize memory management subsystem and exit
-    // status = init_memory(&kernel);
-    // ASSERT_EFI_STATUS(status);
+    status = init_memory(&kernel);
+    ASSERT_EFI_STATUS(status);
 
     // Some work, blends in the lithuanian flag
     for(uint8_t o = 0; o <= 100; o += 1) {

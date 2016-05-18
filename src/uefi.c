@@ -1,4 +1,5 @@
 #include "uefi.h"
+#include "serial.h"
 
 KAPI EFI_STATUS
 efi_realloc_buffer(const struct uefi *uefi, void **buffer, uint64_t size);
@@ -31,7 +32,7 @@ efi_memory_map(const struct uefi *uefi, struct efi_memory_map *map_info)
 
     status = EFI_SUCCESS;
     buffer = NULL;
-    buffer_size = sizeof(EFI_MEMORY_DESCRIPTOR);
+    buffer_size = 1;
 
     for(int i = 0;
         i < 32 && !EFI_ERROR(efi_realloc_buffer(uefi, (void **)&buffer, buffer_size));
