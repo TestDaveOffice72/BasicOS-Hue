@@ -1,8 +1,16 @@
 #include "cpu.h"
+#include "serial.h"
 
 const uint32_t HAS_APIC = 1 << 9;
 const uint32_t HAS_X2APIC = 1 << 21;
 const uint32_t HAS_MSR = 1 << 5;
+const uint32_t HAS_SSE = 1 << 25;
+const uint32_t HAS_SSE2 = 1 << 26;
+const uint64_t CR0_EM_BIT = 1 << 2;
+const uint64_t CR0_MP_BIT = 1 << 1;
+const uint64_t CR4_OSFXSR_BIT = 1 << 9;
+const uint64_t CR4_OSXMMEXCPT_BIT = 1 << 10;
+
 
 KAPI EFI_STATUS
 init_cpu(struct cpu *cpu)
@@ -12,6 +20,17 @@ init_cpu(struct cpu *cpu)
     cpu->has_apic = (d & HAS_APIC) != 0;
     cpu->has_x2apic = (c & HAS_X2APIC) != 0;
     cpu->has_msr = (d & HAS_MSR) != 0;
+    cpu->has_sse = (d & HAS_SSE) != 0;
+    cpu->has_sse2 = (d & HAS_SSE2) != 0;
+
+    // We require these.
+    if(!cpu->has_sse || !cpu->has_sse2) {
+        return EFI_UNSUPPORTED;
+    }
+    // Enable SSE
+    write_cr0((read_cr0() & ~CR0_EM_BIT) | CR0_MP_BIT);
+    write_cr4(read_cr4() | CR4_OSFXSR_BIT | CR4_OSXMMEXCPT_BIT);
+
     return EFI_SUCCESS;
 }
 
