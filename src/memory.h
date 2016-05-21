@@ -2,12 +2,18 @@
 #include "lib.h"
 #include <efi.h>
 
+#define FOR_EACH_MEMORY_DESCRIPTOR(kernel, desc) \
+    EFI_MEMORY_DESCRIPTOR *desc = kernel->uefi.boot_memmap.descrs;\
+    uint8_t **descr_offsetter = (uint8_t **)&(desc);\
+    uint64_t offset = kernel->uefi.boot_memmap.descr_size;\
+    for(uint64_t __i = 0; \
+        __i < kernel->uefi.boot_memmap.entries;\
+        __i += 1, *descr_offsetter += offset)
+
 struct memory {
-    EFI_MEMORY_DESCRIPTOR *memory_map;
-    uint64_t              memory_map_size;
-    uint64_t              map_key;
-    uint64_t              descriptor_size;
-    uint32_t              descriptor_version;
+    uint64_t              *first_free_page;
+    uint64_t              *pml4_table;
+    uint64_t              max_addr;
 };
 
 typedef enum {
@@ -33,3 +39,8 @@ typedef enum {
 struct kernel;
 KAPI EFI_STATUS
 init_memory(struct kernel *kernel);
+KAPI void set_paging(bool on);
+/// Allocate a single page. Returns NULL if there’s no more pages to allocate.
+KAPI void *allocate_page(struct kernel *k);
+/// Deallocate a single page.
+KAPI void deallocate_page(struct kernel *k, void *p);

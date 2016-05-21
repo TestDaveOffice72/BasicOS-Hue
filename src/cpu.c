@@ -4,6 +4,7 @@
 const uint32_t HAS_APIC = 1 << 9;
 const uint32_t HAS_X2APIC = 1 << 21;
 const uint32_t HAS_MSR = 1 << 5;
+const uint32_t HAS_IA32_EFER = 1 << 20 | 1 << 29;
 const uint32_t HAS_SSE = 1 << 25;
 const uint32_t HAS_SSE2 = 1 << 26;
 const uint64_t CR0_EM_BIT = 1 << 2;
@@ -22,6 +23,10 @@ init_cpu(struct cpu *cpu)
     cpu->has_msr = (d & HAS_MSR) != 0;
     cpu->has_sse = (d & HAS_SSE) != 0;
     cpu->has_sse2 = (d & HAS_SSE2) != 0;
+
+    a = 0x80000001;
+    __asm__("cpuid" : "=d"(d), "=b"(b), "=c"(c), "+a"(a));
+    cpu->has_ia32_efer = d & HAS_IA32_EFER;
 
     // We require these.
     if(!cpu->has_sse || !cpu->has_sse2) {

@@ -16,11 +16,15 @@ KAPI void kmemcpy(void *dest, const void *src, uint64_t len) {
     }
 }
 
-KAPI void kmemset(void *dest, uint8_t e, uint64_t len) {
+void memset(void *dest, uint8_t e, uint64_t len) {
     uint8_t *d = dest;
     for(uint64_t i = 0; i < len; i++, d++) {
         *d = e;
     }
+}
+
+KAPI void kmemset(void *dest, uint8_t e, uint64_t len) {
+    memset(dest, e, len);
 }
 
 KAPI uint64_t kstrlen(const char *data) {
