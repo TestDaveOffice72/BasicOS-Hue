@@ -8,9 +8,16 @@ NAKED void
 unknown_handler()
 {
     __asm__(".intel_syntax;"
+            "mov dx, 03f8h;"
+            "mov al, 023h;"
+            "out dx, al;"
+            "mov al, '?';"
+            "out dx, al;"
+            "mov al, '?';"
+            "out dx, al;"
+            "mov al, 0Ah;"
+            "out dx, al;"
             "1:"
-            "mov ecx, 0ffc1272dh;"
-            "call fill_screen;"
             "hlt;"
             "jmp 1b;");
 }
@@ -19,9 +26,16 @@ NAKED void
 unknown_software_handler()
 {
     __asm__(".intel_syntax;"
+            "mov dx, 03f8h;"
+            "mov al, 023h;"
+            "out dx, al;"
+            "mov al, 'S';"
+            "out dx, al;"
+            "mov al, '?';"
+            "out dx, al;"
+            "mov al, 0Ah;"
+            "out dx, al;"
             "1:"
-            "mov ecx, 0006a44h;"
-            "call fill_screen;"
             "hlt;"
             "jmp 1b;");
 }
@@ -30,20 +44,88 @@ NAKED void
 unknown_irq_handler()
 {
     __asm__(".intel_syntax;"
+            "mov dx, 03f8h;"
+            "mov al, 023h;"
+            "out dx, al;"
+            "mov al, 'I';"
+            "out dx, al;"
+            "mov al, '?';"
+            "out dx, al;"
+            "mov al, 0Ah;"
+            "out dx, al;"
             "1:"
-            "mov ecx, 06a0044h;"
-            "call fill_screen;"
             "hlt;"
             "jmp 1b;");
 }
 
 NAKED void
-int13_handler()
+df_handler()
 {
     __asm__(".intel_syntax;"
+            "mov dx, 03f8h;"
+            "mov al, 023h;"
+            "out dx, al;"
+            "mov al, 'D';"
+            "out dx, al;"
+            "mov al, 'F';"
+            "out dx, al;"
+            "mov al, 0Ah;"
+            "out dx, al;"
             "1:"
-            "mov ecx, 0ffddbb00h;"
-            "call fill_screen;"
+            "hlt;"
+            "jmp 1b;");
+}
+
+NAKED void
+gp_handler()
+{
+    __asm__(".intel_syntax;"
+            "mov dx, 03f8h;"
+            "mov al, 023h;"
+            "out dx, al;"
+            "mov al, 'G';"
+            "out dx, al;"
+            "mov al, 'P';"
+            "out dx, al;"
+            "mov al, 0Ah;"
+            "out dx, al;"
+            "1:"
+            "hlt;"
+            "jmp 1b;");
+}
+
+NAKED void
+pf_handler()
+{
+    __asm__(".intel_syntax;"
+            "mov dx, 03f8h;"
+            "mov al, 023h;"
+            "out dx, al;"
+            "mov al, 'P';"
+            "out dx, al;"
+            "mov al, 'F';"
+            "out dx, al;"
+            "mov al, 0Ah;"
+            "out dx, al;"
+            "1:"
+            "hlt;"
+            "jmp 1b;");
+}
+
+NAKED void
+ud_handler()
+{
+    __asm__(".intel_syntax;"
+            "mov dx, 03f8h;"
+            "mov al, 023h;"
+            "out dx, al;"
+            "mov al, 'U';"
+            "out dx, al;"
+            "mov al, 'D';"
+            "out dx, al;"
+            "mov al, 0Ah;"
+            "out dx, al;"
+            "1:"
             "hlt;"
             "jmp 1b;");
 }
@@ -78,7 +160,6 @@ irq1_inner()
     uint8_t k = 0;
     while((k = port_inb(0x60)) == 0);
     fill_screen(0xff880000 | k);
-    for(int i = 0; i < 100000; i++);
     uint8_t a = port_inb(0x61);
     a |= 0x82;
     port_outb(0x61, a);

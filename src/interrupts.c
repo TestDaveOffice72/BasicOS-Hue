@@ -65,12 +65,19 @@ init_interrupts(struct kernel *kernel)
         set_interrupt(is->idt_address + i, unknown_software_handler);
     }
 
+    serial_print("\tSetting DF handler\n");
+    set_interrupt(is->idt_address + 8, df_handler);
+    serial_print("\tSetting GP handler\n");
+    set_interrupt(is->idt_address + 13, gp_handler);
+    serial_print("\tSetting PF handler\n");
+    set_interrupt(is->idt_address + 14, pf_handler);
+    serial_print("\tSetting UD handler\n");
+    set_interrupt(is->idt_address + 6, ud_handler);
+
     serial_print("\tSetting IRQ1 handler\n");
     set_interrupt(is->idt_address + (0xfe - 1), irq1_handler);
     ioapic_setup(is, is->apic.local_apic_id, 1, 0xfe - 1);
 
-    serial_print("\tSetting INT13 handler\n");
-    set_interrupt(is->idt_address + 13, int13_handler);
     serial_print("\tSetting INT32 handler\n");
     set_interrupt(is->idt_address + 32, int32_handler);
     serial_print("\tSetting INT33 handler\n");
