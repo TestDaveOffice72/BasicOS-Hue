@@ -41,8 +41,7 @@ init_serial_port();
 KAPI EFI_STATUS
 init_serial(const struct uefi *uefi, struct serial *serial)
 {
-    init_serial_port();
-    return EFI_SUCCESS;
+    return init_serial_port();
 }
 
 KAPI inline uint8_t
