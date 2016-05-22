@@ -30,11 +30,19 @@ KAPI void set_entry_supervisor(uint64_t *entry, bool on);
 KAPI void set_entry_physical(uint64_t *entry, uint64_t physical);
 KAPI uint64_t get_entry_physical(uint64_t *entry);
 KAPI void set_entry_exec(uint64_t *entry, bool on);
+KAPI EFI_STATUS init_gdt(struct kernel *);
+
+struct GDT {
+    uint16_t limit;
+    uint64_t offset;
+} __attribute__((packed));
 
 KAPI EFI_STATUS
 init_memory(struct kernel *kernel) {
     uint64_t max_address = 0;
     EFI_STATUS status;
+    status = init_gdt(kernel);
+    ASSERT_EFI_STATUS(status);
     status = setup_paging(kernel);
     ASSERT_EFI_STATUS(status);
     status = efi_memory_map(&kernel->uefi, &kernel->uefi.boot_memmap);
@@ -42,6 +50,7 @@ init_memory(struct kernel *kernel) {
     serial_print("EFI memory map has ");
     serial_print_int(kernel->uefi.boot_memmap.entries);
     serial_print(" entries (type pstart~vstart, numpages, attrs):\n");
+
 
     // At this point it is completely fine to exit the boot services. We are not doing any
     // allocation with UEFI further ahead and we already got the memory map.
@@ -197,15 +206,20 @@ init_memory(struct kernel *kernel) {
     // Finally, we can deallocate the BootServicesCode/Data pages. (NB: page with start at address
     // 0x0 is BootServicesData, thus dereferencing it becomes invalid).
     {FOR_EACH_MEMORY_DESCRIPTOR(kernel, descr) {
-        // FIXME: Clearing the BootServicesData here causes some very weird timing related failures
-        // to happen. I couldn’t manage to finish the investigation, sadly.
-        // Namely, about a second later some weird [=3h will appear in the serial output and the
-        // system will reset.
-        if(descr->Type == _EfiBootServicesCode /*||  descr->Type == _EfiBootServicesData */) {
+        if(descr->Type == _EfiBootServicesCode) {
             for(uint64_t i = 0; i < descr->NumberOfPages; i += 1) {
                 deallocate_page(kernel, (void *)descr->VirtualStart + 0x1000 * i);
             }
         }
+        // FIXME: Clearing the BootServicesData here causes some very weird timing related failures
+        // to happen. I couldn’t manage to finish the investigation, sadly.
+        // Namely, about a second later some weird `[=3h`s will appear in the serial output and the
+        // system will reset. (not a triple/double/page fault, though)
+        // if(descr->Type == _EfiBootServicesData) {
+        //     for(uint64_t i = 0; i < descr->NumberOfPages; i += 1) {
+        //         deallocate_page(kernel, (void *)descr->VirtualStart + 0x1000 * i);
+        //     }
+        // }
     }}
 
     return EFI_SUCCESS;
@@ -324,7 +338,8 @@ get_memory_entry_for(struct kernel *k, uint64_t address, uint8_t level)
 // Gets or creates memory entry for specified address. Cannot be used while the tables for memory
 // itself aren’t initialized yet.
 KAPI uint64_t *
-create_memory_entry_for(struct kernel *k, uint64_t address, uint8_t level) {
+create_memory_entry_for(struct kernel *k, uint64_t address, uint8_t level)
+{
     uint64_t index = address / 0x1000;
     uint64_t indices[4] = {
         index % 512,
@@ -350,27 +365,32 @@ create_memory_entry_for(struct kernel *k, uint64_t address, uint8_t level) {
     return NULL;
 }
 
-KAPI void set_entry_present(uint64_t *entry, bool on) {
+KAPI void set_entry_present(uint64_t *entry, bool on)
+{
     const uint64_t flag = 1ull;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_writeable(uint64_t *entry, bool on) {
+KAPI void set_entry_writeable(uint64_t *entry, bool on)
+{
     const uint64_t flag = 1ull << 1;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_supervisor(uint64_t *entry, bool on) {
+KAPI void set_entry_supervisor(uint64_t *entry, bool on)
+{
     const uint64_t flag = 1ull << 2;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_pagesize(uint64_t *entry, bool on) {
+KAPI void set_entry_pagesize(uint64_t *entry, bool on)
+{
     const uint64_t flag = 1ull << 7;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_physical(uint64_t *entry, uint64_t physical) {
+KAPI void set_entry_physical(uint64_t *entry, uint64_t physical)
+{
     if((physical & 0xFFF) != 0) {
         serial_print("set_entry_physical: bad physical address: ");
         DEBUG_HALT;
@@ -378,11 +398,29 @@ KAPI void set_entry_physical(uint64_t *entry, uint64_t physical) {
     *entry |= physical;
 }
 
-KAPI uint64_t get_entry_physical(uint64_t *entry) {
+KAPI uint64_t get_entry_physical(uint64_t *entry)
+{
     return *entry & 0x0007FFFFFFFFF000;
 }
 
-KAPI void set_entry_exec(uint64_t *entry, bool on) {
+KAPI void set_entry_exec(uint64_t *entry, bool on)
+{
     const uint64_t flag = 1ull << 63;
     if(!on) { *entry |= flag; } else { *entry &= ~flag; }
+}
+
+#define GDT_TABLE_SIZE (0x8 * 9) // space for 8 entries
+KAPI EFI_STATUS init_gdt(struct kernel *k)
+{
+    uint64_t *data;
+    EFI_STATUS status = k->uefi.system_table->BootServices->AllocatePool(EfiLoaderData,
+                                                                         GDT_TABLE_SIZE,
+                                                                         (void **)&data);
+    ASSERT_EFI_STATUS(status);
+    data[0] = 0;
+    data[1] = (1ull<<44) | (1ull<<47) | (1ull<<41) | (1ull<<43) | (1ull<<53);
+    data[2] = (1ull<<44) | (1ull<<47) | (1ull<<41);
+    struct GDT gdt = { .offset = (uint64_t)data, .limit = sizeof(uint64_t) * 3 - 1 };
+    __asm__("lgdt %0":"=m"(gdt));
+    return EFI_SUCCESS;
 }

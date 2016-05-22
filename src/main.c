@@ -19,7 +19,6 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
     ASSERT_EFI_STATUS(status);
     serial_print("Kernel booting\n");
 
-
     serial_print("CPU…\n");
     status = init_cpu(&kernel.cpu);
     ASSERT_EFI_STATUS(status);
@@ -39,7 +38,7 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
     status = init_memory(&kernel);
     ASSERT_EFI_STATUS(status);
 
-    serial_print("Drawing the thing");
+    serial_print("Drawing the thing\n");
     for(uint8_t o = 0; o <= 100; o += 1) {
         for(int x = 0; x < 1920; x += 1) {
             for(int y = 0; y < 360; y += 1) {

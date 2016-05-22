@@ -14,6 +14,7 @@
 #include "cpu.h"
 #include "handlers.h"
 #include "uefi.h"
+#include "efidef.h"
 
 
 struct idt_descriptor {
@@ -49,11 +50,17 @@ init_interrupts(struct kernel *kernel)
     if(EFI_ERROR(status)) return status;
 
     struct IDT idt;
-    __asm__("sidt %0":"=m"(idt));
+    status = kernel->uefi.system_table->BootServices->AllocatePages(AllocateAnyPages,
+                                                                    EfiLoaderData,
+                                                                    1, &idt.offset);
+    ASSERT_EFI_STATUS(status);
+    idt.limit = 0xfff;
+    __asm__("cli;"
+            "lidt %0":"=m"(idt));
     is->idt_limit = idt.limit;
     is->idt_address = (struct idt_descriptor *)idt.offset;
-    uint32_t vectors = idt.limit / sizeof(struct idt_descriptor);
 
+    uint32_t vectors = idt.limit / sizeof(struct idt_descriptor);
     serial_print("\tSetting all to unknown handler\n");
     // Set all interrupts to unknown handler first.
     for(int i = 0; i < vectors; i++){
