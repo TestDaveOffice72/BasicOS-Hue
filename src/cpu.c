@@ -50,3 +50,45 @@ KAPI void
 cpu_write_msr(uint32_t msr, uint64_t data) {
     __asm__ volatile("wrmsr;"::"c"(msr), "a"((uint32_t)data), "d"((uint32_t)(data>>32)));
 }
+
+KAPI INLINE uint64_t
+read_cr0()
+{
+    uint64_t value;
+    __asm__("movq %%cr0, %0" : "=r"(value));
+    return value;
+}
+
+KAPI INLINE void
+write_cr0(uint64_t value)
+{
+    __asm__("movq %0, %%cr0" :: "r"(value));
+}
+
+KAPI INLINE uint64_t
+read_cr3()
+{
+    uint64_t value;
+    __asm__("movq %%cr3, %0" : "=r"(value));
+    return value;
+}
+
+KAPI INLINE void
+write_cr3(uint64_t value)
+{
+    __asm__("movq %0, %%cr3" :: "r"(value));
+}
+
+KAPI INLINE uint64_t
+read_cr4()
+{
+    uint64_t value;
+    __asm__("movq %%cr4, %0" : "=r"(value));
+    return value;
+}
+
+KAPI INLINE void
+write_cr4(uint64_t value)
+{
+    __asm__("movq %0, %%cr4" :: "r"(value));
+}

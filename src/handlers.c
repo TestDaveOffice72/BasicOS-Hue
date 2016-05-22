@@ -159,7 +159,9 @@ irq1_inner()
 {
     uint8_t k = 0;
     while((k = port_inb(0x60)) == 0);
-    fill_screen(0xff880000 | k);
+    serial_print("Keypress keycode:");
+    serial_print_int(k);
+    serial_print("\n");
     uint8_t a = port_inb(0x61);
     a |= 0x82;
     port_outb(0x61, a);

@@ -43,6 +43,14 @@ init_memory(struct kernel *kernel) {
     serial_print_int(kernel->uefi.boot_memmap.entries);
     serial_print(" entries (type pstart~vstart, numpages, attrs):\n");
 
+    // At this point it is completely fine to exit the boot services. We are not doing any
+    // allocation with UEFI further ahead and we already got the memory map.
+    status = kernel->uefi.system_table->BootServices->ExitBootServices(
+        kernel->uefi.image_handle,
+        kernel->uefi.boot_memmap.map_key
+    );
+    ASSERT_EFI_STATUS(status);
+
     // First of all we make a linked list of all free pages. Our scheme is this:
     // Keep first_free_page noted at all times. This page contains the address of the next unused
     // page.
@@ -115,14 +123,7 @@ init_memory(struct kernel *kernel) {
     serial_print("\n");
     kernel->memory.max_addr = max_address;
 
-
-    // At this point it is completely fine to exit the boot services.
-    status = kernel->uefi.system_table->BootServices->ExitBootServices(
-        kernel->uefi.image_handle,
-        kernel->uefi.boot_memmap.map_key
-    );
-
-    ASSERT_EFI_STATUS(status);
+    // We can inform UEFI runtime about our identity mapping scheme now.
     status = kernel->uefi.system_table->RuntimeServices->SetVirtualAddressMap(
         kernel->uefi.boot_memmap.entries * kernel->uefi.boot_memmap.descr_size,
         kernel->uefi.boot_memmap.descr_size,
@@ -131,6 +132,7 @@ init_memory(struct kernel *kernel) {
     );
     ASSERT_EFI_STATUS(status);
     serial_print("Boot services done\n");
+
 
     // Now we should setup the virtual mapping descriptors (which involve allocations from our page
     // allocator we made just above.
@@ -142,13 +144,13 @@ init_memory(struct kernel *kernel) {
         if(descr->Type == _EfiConventionalMemory) {
             for(uint64_t i = descr->NumberOfPages; i > 0; i -= 1) {
                 uint64_t *e = get_memory_entry_for(kernel, descr->VirtualStart + 0x1000 * i, 0);
-                if((*e | (1 << 8)) == 0) {
+                if((*e | (1 << 11)) == 0) {
                     // First of all, all the unallocated memory is, obviously, not present.
                     set_entry_present(e, false);
                 } else {
                     // We also specially some entries which we marked as used for the tables
                     // themselves. These should stay present, but not executable.
-                    *e &= ~(1 << 8); // Also, remove the flag.
+                    *e &= ~(1 << 11); // Also, remove the flag.
                     set_entry_exec(e, false);
                 }
             }
@@ -174,14 +176,14 @@ init_memory(struct kernel *kernel) {
     uint64_t *e = get_memory_entry_for(kernel, 0, 0);
     set_entry_present(e, false);
 
+
     // Then we redo graphics framebuffer mapping
-    for(uint64_t i = 0; i < kernel->graphics.buffer_size; i += 0x200000) {
+    for(uint64_t i = 0; i <= kernel->graphics.buffer_size; i += 0x200000) {
         uint64_t *e = create_memory_entry_for(kernel,
                                               (uint64_t)kernel->graphics.buffer_base + i, 1);
         *e = (uint64_t)kernel->graphics.buffer_base + i;
         set_entry_present(e, true);
         set_entry_writeable(e, true);
-        set_entry_supervisor(e, true);
         set_entry_pagesize(e, true);
     }
 
@@ -195,7 +197,11 @@ init_memory(struct kernel *kernel) {
     // Finally, we can deallocate the BootServicesCode/Data pages. (NB: page with start at address
     // 0x0 is BootServicesData, thus dereferencing it becomes invalid).
     {FOR_EACH_MEMORY_DESCRIPTOR(kernel, descr) {
-        if(descr->Type == _EfiBootServicesCode /*|| descr->Type == _EfiBootServicesData*/) {
+        // FIXME: Clearing the BootServicesData here causes some very weird timing related failures
+        // to happen. I couldn’t manage to finish the investigation, sadly.
+        // Namely, about a second later some weird [=3h will appear in the serial output and the
+        // system will reset.
+        if(descr->Type == _EfiBootServicesCode /*||  descr->Type == _EfiBootServicesData */) {
             for(uint64_t i = 0; i < descr->NumberOfPages; i += 1) {
                 deallocate_page(kernel, (void *)descr->VirtualStart + 0x1000 * i);
             }
@@ -288,11 +294,11 @@ KAPI uint64_t *allocate_tables(struct kernel *k, uint64_t offset, uint64_t max_a
             uint64_t *child = allocate_tables(k, offset + i * entry_size, max_address, level - 1);
             // We initialize all intermediate pages as present, writable, executable etc, because
             // book-keeping these is pain.
-            new_page[i] = (uint64_t)child | 1ull | 1ull << 1 | 1ull << 2 | 1ull << 8;
+            new_page[i] = (uint64_t)child | 1ull | 1ull << 1 | 1ull << 2 | 1ull << 11;
         }
     } else {
         for(uint64_t i = 0; i < 512 && offset + i * entry_size < max_address; i++) {
-            new_page[i] = offset + i * entry_size | 1ull | 1ull << 1 | 1ull << 2 | 1ull << 8;
+            new_page[i] = offset + i * entry_size | 1ull | 1ull << 1 | 1ull << 2 | 1ull << 11;
         }
     }
     return new_page;

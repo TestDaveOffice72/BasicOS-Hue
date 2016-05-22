@@ -4,6 +4,8 @@
 #include "kernel.h"
 #include "uefi.h"
 
+KAPI void fill_screen(const struct graphics *gs, uint32_t rgb);
+
 struct kernel kernel;
 
 EFI_STATUS
@@ -37,7 +39,7 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
     status = init_memory(&kernel);
     ASSERT_EFI_STATUS(status);
 
-    // Some work, blends in the lithuanian flag
+    serial_print("Drawing the thing");
     for(uint8_t o = 0; o <= 100; o += 1) {
         for(int x = 0; x < 1920; x += 1) {
             for(int y = 0; y < 360; y += 1) {
@@ -63,7 +65,6 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
             }
         }
     }
-
 
     serial_print("Reached end of efi_main!\n");
     // Once we’re done we poweroff the machine.

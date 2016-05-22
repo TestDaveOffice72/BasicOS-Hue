@@ -130,7 +130,7 @@ set_interrupt(struct idt_descriptor* descr, void (*handler)())
     descr->offset_2 = address >> 16;
 }
 
-static inline void
+static INLINE void
 disable_pic()
 {
     // Setup the old technology

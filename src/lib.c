@@ -32,3 +32,18 @@ KAPI uint64_t kstrlen(const char *data) {
     for(r = 0; *data != 0; data++, r++);
     return r;
 }
+
+KAPI INLINE uint8_t
+port_inb(uint16_t port)
+{
+    uint8_t data;
+    __asm__ volatile("inb %w1,%b0" : "=a" (data) : "d"(port));
+    return data;
+}
+
+KAPI INLINE uint8_t
+port_outb(uint16_t port, uint8_t value)
+{
+    __asm__ volatile("outb %b0,%w1" : : "a" (value), "d"(port));
+    return value;
+}
