@@ -152,8 +152,6 @@ irq1_handler(uint32_t a)
             "iretq;");
 }
 
-KAPI void fill_screen(uint32_t rgb);
-
 KAPI void
 irq1_inner()
 {
