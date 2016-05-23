@@ -3,6 +3,8 @@ ARCH          = x86_64
 OUTDIR        = bin
 HEADERS       = $(wildcard src/*.h)
 OBJS          = $(patsubst src/%.c,$(OUTDIR)/%.o,$(wildcard src/*.c))
+APPS          = $(patsubst src/%.s,$(OUTDIR)/%.com,$(wildcard src/*.s))
+APPS_O        = $(patsubst src/%.s,$(OUTDIR)/app_%.o,$(wildcard src/*.s))
 
 EFIINC        = /usr/include/efi
 EFIINCS       = -I$(EFIINC) -I$(EFIINC)/$(ARCH) -I$(EFIINC)/protocol
@@ -31,7 +33,7 @@ run: all
 	qemu-system-$(ARCH) -pflash $(OVMF) -drive file=fat:$(OUTDIR),format=raw $(QEMU_OPTS)
 	sed -n '/Kernel booting/,$$p' debug.log
 
-$(OUTDIR)/huehuehuehuehue.so: $(OBJS) $(EFI_CRT_OBJS)
+$(OUTDIR)/huehuehuehuehue.so: $(OBJS) $(APPS_O) $(EFI_CRT_OBJS)
 # TODO: remove -lefi in non-debug builds
 	$(LD) $(LDFLAGS) -o $@ $^ -lgnuefi
 
@@ -41,6 +43,13 @@ $(OUTDIR)/%.efi: $(OUTDIR)/%.so
 
 $(OUTDIR)/%.sym: $(OUTDIR)/%.so
 	objcopy --only-keep-debug $< $@
+
+$(APPS): $(OUTDIR)/%.com: src/%.s
+	nasm -f bin $< -o $@
+
+$(APPS_O): $(OUTDIR)/app_%.o: $(OUTDIR)/%.com
+	objcopy -I binary -O elf64-$(subst _,-,$(ARCH)) -B i386 $< $@
+
 
 $(OBJS): $(OUTDIR)/%.o: src/%.c $(HEADERS)
 	@mkdir -p $(@D)

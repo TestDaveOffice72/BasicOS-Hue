@@ -44,3 +44,6 @@ KAPI void set_paging(bool on);
 KAPI void *allocate_page(struct kernel *k);
 /// Deallocate a single page.
 KAPI void deallocate_page(struct kernel *k, void *p);
+
+/// Map a single page to a specified address.
+KAPI void map_page(struct kernel *k, uint64_t address, uint8_t level, uint64_t phys_addr);

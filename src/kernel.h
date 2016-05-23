@@ -8,6 +8,8 @@
 #include "graphics.h"
 #include "memory.h"
 #include "serial.h"
+#include "process.h"
+
 
 struct kernel {
     struct memory memory;
@@ -16,4 +18,7 @@ struct kernel {
     struct interrupts interrupts;
     struct uefi uefi;
     struct serial serial;
+    struct processes processes;
 };
+
+static struct kernel *global_kernel;

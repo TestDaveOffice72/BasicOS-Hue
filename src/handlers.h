@@ -16,3 +16,5 @@ void irq1_handler();
 void int32_handler();
 // PERMAHALT interrupt
 void int33_handler();
+// SERIAL PRINT interrupt
+void int34_handler();

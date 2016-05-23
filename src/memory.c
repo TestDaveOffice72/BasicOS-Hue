@@ -30,7 +30,7 @@ KAPI void set_entry_supervisor(uint64_t *entry, bool on);
 KAPI void set_entry_physical(uint64_t *entry, uint64_t physical);
 KAPI uint64_t get_entry_physical(uint64_t *entry);
 KAPI void set_entry_exec(uint64_t *entry, bool on);
-KAPI EFI_STATUS init_gdt(struct kernel *);
+KAPI void init_gdt();
 
 struct GDT {
     uint16_t limit;
@@ -41,8 +41,8 @@ KAPI EFI_STATUS
 init_memory(struct kernel *kernel) {
     uint64_t max_address = 0;
     EFI_STATUS status;
-    status = init_gdt(kernel);
-    ASSERT_EFI_STATUS(status);
+
+    init_gdt(kernel);
     status = setup_paging(kernel);
     ASSERT_EFI_STATUS(status);
     status = efi_memory_map(&kernel->uefi, &kernel->uefi.boot_memmap);
@@ -351,6 +351,7 @@ create_memory_entry_for(struct kernel *k, uint64_t address, uint8_t level)
     for(uint8_t l = 4; l > level;) {
         l -= 1;
         uint64_t *next = current + indices[l];
+        if(l == level) return next;
         if((*next & 1) == 0) {
             uint64_t *new_page = allocate_page_inner(k);
             kmemset(new_page, 0, 0x1000);
@@ -359,37 +360,54 @@ create_memory_entry_for(struct kernel *k, uint64_t address, uint8_t level)
             set_entry_writeable(next, true);
             set_entry_supervisor(next, true);
         }
-        if(l == level) return next;
         current = (uint64_t *)get_entry_physical(next);
     }
     return NULL;
 }
 
-KAPI void set_entry_present(uint64_t *entry, bool on)
+KAPI void
+map_page(struct kernel *k, uint64_t address, uint8_t level, uint64_t phys_addr)
+{
+    serial_print("Mapped "); serial_print_hex(address); serial_print(" to ");
+    serial_print_hex(phys_addr); serial_print("\n");
+    uint64_t *entry = create_memory_entry_for(k, address, level);
+    set_entry_physical(entry, phys_addr);
+    set_entry_present(entry, true);
+    set_entry_exec(entry, true);
+    set_entry_writeable(entry, true);
+}
+
+
+KAPI void
+set_entry_present(uint64_t *entry, bool on)
 {
     const uint64_t flag = 1ull;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_writeable(uint64_t *entry, bool on)
+KAPI void
+set_entry_writeable(uint64_t *entry, bool on)
 {
     const uint64_t flag = 1ull << 1;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_supervisor(uint64_t *entry, bool on)
+KAPI void
+set_entry_supervisor(uint64_t *entry, bool on)
 {
     const uint64_t flag = 1ull << 2;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_pagesize(uint64_t *entry, bool on)
+KAPI void
+set_entry_pagesize(uint64_t *entry, bool on)
 {
     const uint64_t flag = 1ull << 7;
     if(on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-KAPI void set_entry_physical(uint64_t *entry, uint64_t physical)
+KAPI void
+set_entry_physical(uint64_t *entry, uint64_t physical)
 {
     if((physical & 0xFFF) != 0) {
         serial_print("set_entry_physical: bad physical address: ");
@@ -398,29 +416,74 @@ KAPI void set_entry_physical(uint64_t *entry, uint64_t physical)
     *entry |= physical;
 }
 
-KAPI uint64_t get_entry_physical(uint64_t *entry)
+KAPI uint64_t
+get_entry_physical(uint64_t *entry)
 {
     return *entry & 0x0007FFFFFFFFF000;
 }
 
-KAPI void set_entry_exec(uint64_t *entry, bool on)
+KAPI void
+set_entry_exec(uint64_t *entry, bool on)
 {
     const uint64_t flag = 1ull << 63;
     if(!on) { *entry |= flag; } else { *entry &= ~flag; }
 }
 
-#define GDT_TABLE_SIZE (0x8 * 9) // space for 8 entries
-KAPI EFI_STATUS init_gdt(struct kernel *k)
+KAPI void
+init_gdt()
 {
-    uint64_t *data;
-    EFI_STATUS status = k->uefi.system_table->BootServices->AllocatePool(EfiLoaderData,
-                                                                         GDT_TABLE_SIZE,
-                                                                         (void **)&data);
-    ASSERT_EFI_STATUS(status);
-    data[0] = 0;
-    data[1] = (1ull<<44) | (1ull<<47) | (1ull<<41) | (1ull<<43) | (1ull<<53);
-    data[2] = (1ull<<44) | (1ull<<47) | (1ull<<41);
-    struct GDT gdt = { .offset = (uint64_t)data, .limit = sizeof(uint64_t) * 3 - 1 };
-    __asm__("lgdt %0":"=m"(gdt));
-    return EFI_SUCCESS;
+    // we have segments set up already, we just want to replace them with our own (e.g. no 32bit
+    // mode). All we got to do is basicaly replace the known-used descriptors with our own and
+    // reload the segments afterwards.
+    struct GDT *gdt;
+    uint16_t data_segment, code_segment;
+    __asm__("cli; sgdt (%0);"
+            "movw %%ds, %1;"
+            "movw %%cs, %2;" : "=r"(gdt), "=r"(data_segment), "=r"(code_segment));
+    data_segment /= 8;
+    code_segment /= 8;
+    kmemset((uint8_t *)gdt->offset, gdt->limit + 1, 0);
+    ((uint64_t *)gdt->offset)[data_segment] = 0xFFFF | 0xFull << 48
+                                           | 1ull << 55 // this is a number of pages, not bytes
+                                           | 1ull << 47 // present
+                                           | 1ull << 44 // 1 for code and data segments
+                                           | 1ull << 41 // writeable
+                                           ;
+    ((uint64_t *)gdt->offset)[code_segment] = 0xFFFF | 0xFull << 48
+                                           | 1ull << 55
+                                           | 1ull << 53 // executable
+                                           | 1ull << 47
+                                           | 1ull << 44
+                                           | 1ull << 43 // executable
+                                           | 1ull << 41 // readable
+                                           ;
+    // Set the other selectors to new segments and load up our “new” global descriptor table.
+    __asm__("lgdt (%0);"
+            // We didn’t change the index of data segment descriptor, thus reloading it like this
+            // should suffice.
+            "mov %%ds, %%ax;"
+            "mov %%ax, %%ds;"
+            "mov %%ax, %%ss;"
+            "mov %%ax, %%es;"
+            "mov %%ax, %%fs;"
+            "mov %%ax, %%gs;"
+            // Now, reload the code segment. Calling our no-op interrupt should suffice.
+            "sti; int $32;" :: "r"(gdt) : "%ax");
+}
+
+KAPI EFI_STATUS
+add_gdt_entry(uint64_t entry, uint16_t *byte)
+{
+    struct GDT *gdt;
+    __asm__("cli; sgdt (%0);" : "=r"(gdt));
+    for(uint16_t i = 1; i < gdt->limit + 1 / 8; i += 1) {
+        uint64_t *e = ((uint64_t *)gdt->offset) + i;
+        if(*e == 0) {
+            *e = entry;
+            *byte = i * 8;
+            __asm__("lgdt (%0); sti;" : "=r"(gdt));
+            return EFI_SUCCESS;
+        }
+    }
+    return EFI_OUT_OF_RESOURCES;
 }

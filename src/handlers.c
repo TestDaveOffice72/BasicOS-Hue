@@ -98,6 +98,7 @@ NAKED void
 pf_handler()
 {
     __asm__(".intel_syntax;"
+            "cli;"
             "mov dx, 03f8h;"
             "mov al, 023h;"
             "out dx, al;"
@@ -140,6 +141,24 @@ NAKED void
 int33_handler()
 {
     __asm__("1: hlt; jmp 1b;");
+}
+
+NAKED void
+int34_handler()
+{
+    __asm__(".intel_syntax;"
+            PUSHALL_KAPI
+            "mov rdx, rcx;"
+            "mov rcx, rax;"
+            "call int34_inner;"
+            POPALL_KAPI
+            "iretq");
+}
+
+KAPI void
+int34_inner(uint8_t *msg, uint64_t len)
+{
+    serial_port_write(msg, len);
 }
 
 __attribute__((naked, ms_abi)) void
