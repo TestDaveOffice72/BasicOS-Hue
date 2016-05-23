@@ -227,7 +227,7 @@ init_memory(struct kernel *kernel) {
 
 /// Never returns NULL or otherwise invalid pages.
 KAPI void *
-allocate_page_inner(struct kernel *k)
+allocate_page_inner(struct kernel *k, bool ok)
 {
     // Figure out the page we can return.
     uint64_t *ret = k->memory.first_free_page;
@@ -237,7 +237,9 @@ allocate_page_inner(struct kernel *k)
         DEBUG_HALT;
     }
     // Now we note that next first_free_page is recorded in the page being returned.
-    k->memory.first_free_page = (uint64_t *)*ret;
+    // TODO: perhaps something more reliable like checking for existence of page tables and doing
+    // smart things depending on that?
+    if(ok) k->memory.first_free_page = (uint64_t *)*ret;
     // Return the page.
     return ret;
 }
@@ -245,9 +247,10 @@ allocate_page_inner(struct kernel *k)
 KAPI void *
 allocate_page(struct kernel *k)
 {
-    uint64_t *ret = allocate_page_inner(k);
+    uint64_t *ret = allocate_page_inner(k, false);
     uint64_t *e = get_memory_entry_for(k, (uint64_t)ret, 0);
     set_entry_present(e, true);
+    k->memory.first_free_page = (uint64_t *)*ret;
     set_entry_writeable(e, true);
     set_entry_exec(e, false);
     set_entry_supervisor(e, true);
@@ -301,7 +304,7 @@ KAPI uint64_t *allocate_tables(struct kernel *k, uint64_t offset, uint64_t max_a
         case 3: entry_size = 0x1000ull * 512 * 512 * 512; break;
         default: serial_print("allocate_tables: bad level"); DEBUG_HALT;
     }
-    uint64_t *new_page = allocate_page_inner(k);
+    uint64_t *new_page = allocate_page_inner(k, true);
     if(level != 0) {
         for(uint64_t i = 0; i < 512 && offset + i * entry_size < max_address; i++) {
             uint64_t *child = allocate_tables(k, offset + i * entry_size, max_address, level - 1);
@@ -352,7 +355,7 @@ create_memory_entry_for(struct kernel *k, uint64_t address, uint8_t level)
         uint64_t *next = current + indices[l];
         if(l == level) return next;
         if((*next & 1) == 0) {
-            uint64_t *new_page = allocate_page_inner(k);
+            uint64_t *new_page = allocate_page_inner(k, true);
             kmemset(new_page, 0, 0x1000);
             *next = (uint64_t)new_page;
             set_entry_present(next, true);
