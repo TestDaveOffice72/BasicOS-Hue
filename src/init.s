@@ -40,17 +40,15 @@ int 36;
 
 push rax
 int 37
-mov qword [rax], 0x4040404040404040
+mov qword [rax], qword 0x4040404040404040
 mov rcx, 8
 int 34
 
+; poweroff machine, we’re done
+int 38
 
-b1: hlt
-jmp b1
-;
-; ud2
-; int 33
 
+; the other app
 another_app:
 mov rbp, another_app_stackend
 mov rsp, another_app_stackend
@@ -70,6 +68,8 @@ out dx, al;
 mov al, 0x0a
 out dx, al;
 
+; draw the flag of the glorious republic of lituhania.
+int 39;
 ; yields happen
 int 36;
 

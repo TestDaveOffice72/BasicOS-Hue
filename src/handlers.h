@@ -24,3 +24,7 @@ void int35_handler();
 void int36_handler();
 // ALLOC interrupt (address in rax)
 void int37_handler();
+// POWEROFF interrupt
+void int38_handler();
+// LTFLAG interrupt
+void int39_handler();

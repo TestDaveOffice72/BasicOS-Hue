@@ -1,5 +1,6 @@
 #include "lib.h"
 #include "kernel.h"
+#include "efi.h"
 
 #define PUSHALL_KAPI "push rax; push rcx; push rdx; push r8; push r9; push r10; push r11;"
 #define POPALL_KAPI "pop r11; pop r10; pop r9; pop r8; pop rdx; pop rcx; pop rax;"
@@ -234,6 +235,63 @@ KAPI void *
 int37_inner()
 {
     return allocate_page(global_kernel);
+}
+
+NAKED void
+int38_handler()
+{
+    __asm__(".intel_syntax;"
+            "call int38_inner;"
+            "cli; hlt");
+}
+
+KAPI void
+int38_inner(uint64_t new_ip)
+{
+    serial_print("Powering off\n");
+    global_kernel->uefi.system_table->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_SUCCESS,
+                                                                   0, NULL);
+}
+
+NAKED void
+int39_handler()
+{
+    __asm__(".intel_syntax;"
+            PUSHALL_KAPI
+            "call int39_inner;"
+            POPALL_KAPI
+            "iretq");
+}
+
+KAPI void
+int39_inner()
+{
+    for(uint8_t o = 0; o <= 100; o += 1) {
+        for(int x = 0; x < 1920; x += 1) {
+            for(int y = 0; y < 360; y += 1) {
+                uint32_t r = (0xfd * o / 100 ) << 16;
+                uint32_t g = (0xb9 * o / 100 ) << 8;
+                uint32_t b = (0x13 * o / 100 );
+                set_pixel(&global_kernel->graphics, x, y, r | g | b);
+            }
+        }
+        for(int x = 0; x < 1920; x += 1) {
+            for(int y = 360; y < 720; y += 1) {
+                uint32_t g = (0x6a * o / 100) << 8;
+                uint32_t b = (0x44 * o / 100);
+                set_pixel(&global_kernel->graphics, x, y, g | b);
+            }
+        }
+        for(int x = 0; x < 1920; x += 1) {
+            for(int y = 720; y < 1080; y += 1) {
+                uint32_t r = (0xc1 * o / 100) << 16;
+                uint32_t g = (0x27 * o / 100) << 8;
+                uint32_t b = (0x2d * o / 100);
+                set_pixel(&global_kernel->graphics, x, y, r | g | b);
+            }
+        }
+    }
+    serial_print("Drawing complete\n");
 }
 
 __attribute__((naked, ms_abi)) void

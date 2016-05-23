@@ -96,6 +96,10 @@ init_interrupts(struct kernel *kernel)
     set_interrupt(is->idt_address + 36, int36_handler);
     serial_print("\tSetting INT37 handler\n");
     set_interrupt(is->idt_address + 37, int37_handler);
+    serial_print("\tSetting INT38 handler\n");
+    set_interrupt(is->idt_address + 38, int38_handler);
+    serial_print("\tSetting INT39 handler\n");
+    set_interrupt(is->idt_address + 39, int39_handler);
 
     __asm__("sti");
     return EFI_SUCCESS;
