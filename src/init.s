@@ -38,6 +38,13 @@ out dx, al;
 ; yields happen
 int 36;
 
+push rax
+int 37
+mov qword [rax], 0x4040404040404040
+mov rcx, 8
+int 34
+
+
 b1: hlt
 jmp b1
 ;
@@ -62,6 +69,9 @@ mov al, '-';
 out dx, al;
 mov al, 0x0a
 out dx, al;
+
+; yields happen
+int 36;
 
 b2: hlt
 jmp b2

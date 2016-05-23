@@ -203,10 +203,14 @@ int36_inner(uint64_t *rsp)
     uint64_t next_current = (global_kernel->processes.current_process + 1) % 16;
     while(true) {
         if((global_kernel->processes.running_processes & (1 << next_current)) != 0) {
+            p = &global_kernel->processes.ps[next_current];
             serial_print("Switching to process ");
             serial_print_int(next_current);
+            serial_print(" with IP = ");
+            serial_print_hex(p->ip);
+            serial_print(" SP = ");
+            serial_print_hex(p->sp);
             serial_print("\n");
-            p = &global_kernel->processes.ps[next_current];
             global_kernel->processes.current_process = next_current;
             *current_ip = p->ip;
             *current_sp = p->sp;
@@ -220,16 +224,16 @@ NAKED void
 int37_handler()
 {
     __asm__(".intel_syntax;"
-            PUSHALL_KAPI
+            "push rcx; push rdx; push r8; push r9; push r10; push r11;"
             "call int37_inner;"
             "pop r11; pop r10; pop r9; pop r8; pop rdx; pop rcx;"
             "iretq");
 }
 
-KAPI void
-int37_inner(uint8_t *msg, uint64_t len)
+KAPI void *
+int37_inner()
 {
-    serial_port_write(msg, len);
+    return allocate_page(global_kernel);
 }
 
 __attribute__((naked, ms_abi)) void

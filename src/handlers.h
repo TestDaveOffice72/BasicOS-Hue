@@ -18,7 +18,7 @@ void int32_handler();
 void int33_handler();
 // SERIAL PRINT interrupt
 void int34_handler();
-// FORK interrupt (rax = the new IP of fork)
+// FORK interrupt (rcx = the new IP of fork)
 void int35_handler();
 // YIELD interrupt
 void int36_handler();
