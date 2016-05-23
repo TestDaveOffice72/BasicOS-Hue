@@ -15,9 +15,6 @@ KAPI EFI_STATUS start_init(struct kernel *k, uint8_t *init_com_start, uint8_t *i
     // So, first of all, create a page at the location we’ve decided to keep our kernel at. That’s
     // 0x100000000.
     uint64_t size = init_com_end - init_com_start;
-    serial_print_hex(init_com_end);
-    serial_print("\n");
-    serial_print_hex(init_com_start);
     for(uint64_t s = 0; s < size; s += 0x1000) {
         void *page = allocate_page(k);
         if(page == NULL) return EFI_OUT_OF_RESOURCES;
@@ -28,11 +25,10 @@ KAPI EFI_STATUS start_init(struct kernel *k, uint8_t *init_com_start, uint8_t *i
     // process table.
     struct process p = {.ip = 0x100000000, .sp = 0x0};
     k->processes.ps[0] = p;
-    k->processes.running_processes = 0;
+    k->processes.running_processes = 1;
     k->processes.current_process = 0;
-    global_kernel = k;
     // Remember where the kernel struct lives here
-    serial_print("Switching to init process");
+    serial_print("Switching to init process\n");
     switch_to(k, 0);
     serial_print("Switching to init process failed");
     DEBUG_HALT;

@@ -51,7 +51,6 @@ init_memory(struct kernel *kernel) {
     serial_print_int(kernel->uefi.boot_memmap.entries);
     serial_print(" entries (type pstart~vstart, numpages, attrs):\n");
 
-
     // At this point it is completely fine to exit the boot services. We are not doing any
     // allocation with UEFI further ahead and we already got the memory map.
     status = kernel->uefi.system_table->BootServices->ExitBootServices(

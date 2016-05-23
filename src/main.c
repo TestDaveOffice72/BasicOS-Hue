@@ -7,6 +7,7 @@
 KAPI void fill_screen(const struct graphics *gs, uint32_t rgb);
 
 struct kernel kernel;
+struct kernel *global_kernel;
 
 extern uint8_t _binary_bin_init_com_start;
 extern uint8_t _binary_bin_init_com_end;
@@ -41,6 +42,7 @@ efi_main (EFI_HANDLE ih, EFI_SYSTEM_TABLE *st)
     status = init_memory(&kernel);
     ASSERT_EFI_STATUS(status);
 
+    global_kernel = &kernel;
     serial_print("Starting init\n");
     status = start_init(&kernel,
                         (uint8_t *)&_binary_bin_init_com_start,

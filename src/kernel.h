@@ -21,4 +21,4 @@ struct kernel {
     struct processes processes;
 };
 
-static struct kernel *global_kernel;
+extern struct kernel *global_kernel;

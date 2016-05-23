@@ -16,7 +16,6 @@
 #include "uefi.h"
 #include "efidef.h"
 
-
 struct idt_descriptor {
    uint16_t offset_1;    // offset bits 0..15
    uint16_t selector;    // a code segment selector in GDT or LDT
@@ -91,6 +90,12 @@ init_interrupts(struct kernel *kernel)
     set_interrupt(is->idt_address + 33, int33_handler);
     serial_print("\tSetting INT34 handler\n");
     set_interrupt(is->idt_address + 34, int34_handler);
+    serial_print("\tSetting INT35 handler\n");
+    set_interrupt(is->idt_address + 35, int35_handler);
+    serial_print("\tSetting INT36 handler\n");
+    set_interrupt(is->idt_address + 36, int36_handler);
+    serial_print("\tSetting INT37 handler\n");
+    set_interrupt(is->idt_address + 37, int37_handler);
 
     __asm__("sti");
     return EFI_SUCCESS;

@@ -14,7 +14,8 @@ struct processes {
     // Up to 16 forks for now
     struct process ps[16];
     uint8_t current_process;
-    uint8_t running_processes;
+    // bitmask
+    uint16_t running_processes;
 };
 
 // Initialize and start the init process, must already be loaded.

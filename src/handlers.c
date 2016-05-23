@@ -161,6 +161,77 @@ int34_inner(uint8_t *msg, uint64_t len)
     serial_port_write(msg, len);
 }
 
+
+NAKED void
+int35_handler()
+{
+    __asm__(".intel_syntax;"
+            PUSHALL_KAPI
+            "call int35_inner;"
+            POPALL_KAPI
+            "iretq");
+}
+
+KAPI void
+int35_inner(uint64_t new_ip)
+{
+    uint64_t available_slot = __builtin_ffs(~global_kernel->processes.running_processes) - 1;
+    global_kernel->processes.running_processes |= 1 << available_slot;
+    struct process p = { .ip = new_ip, .sp = 0x0 };
+    global_kernel->processes.ps[available_slot] = p;
+}
+
+NAKED void
+int36_handler()
+{
+    __asm__(".intel_syntax;"
+            PUSHALL_KAPI
+            "mov rcx, rsp;"
+            "call int36_inner;"
+            POPALL_KAPI
+            "iretq");
+}
+
+KAPI void
+int36_inner(uint64_t *rsp)
+{
+    uint64_t *current_ip = rsp + 7;
+    uint64_t *current_sp = rsp + 10;
+    struct process *p = &global_kernel->processes.ps[global_kernel->processes.current_process];
+    p->ip = *current_ip;
+    p->sp = *current_sp;
+    uint64_t next_current = (global_kernel->processes.current_process + 1) % 16;
+    while(true) {
+        if((global_kernel->processes.running_processes & (1 << next_current)) != 0) {
+            serial_print("Switching to process ");
+            serial_print_int(next_current);
+            serial_print("\n");
+            p = &global_kernel->processes.ps[next_current];
+            global_kernel->processes.current_process = next_current;
+            *current_ip = p->ip;
+            *current_sp = p->sp;
+            return;
+        }
+        next_current = (next_current + 1) % 16;
+    }
+}
+
+NAKED void
+int37_handler()
+{
+    __asm__(".intel_syntax;"
+            PUSHALL_KAPI
+            "call int37_inner;"
+            "pop r11; pop r10; pop r9; pop r8; pop rdx; pop rcx;"
+            "iretq");
+}
+
+KAPI void
+int37_inner(uint8_t *msg, uint64_t len)
+{
+    serial_port_write(msg, len);
+}
+
 __attribute__((naked, ms_abi)) void
 irq1_handler(uint32_t a)
 {
