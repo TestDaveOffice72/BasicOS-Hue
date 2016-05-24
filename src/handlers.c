@@ -149,8 +149,6 @@ int34_handler()
 {
     __asm__(".intel_syntax;"
             PUSHALL_KAPI
-            "mov rdx, rcx;"
-            "mov rcx, rax;"
             "call int34_inner;"
             POPALL_KAPI
             "iretq");
@@ -232,9 +230,9 @@ int37_handler()
 }
 
 KAPI void *
-int37_inner()
+int37_inner(uint64_t size)
 {
-    return allocate_page(global_kernel);
+    return kmalloc(size);
 }
 
 NAKED void

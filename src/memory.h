@@ -47,3 +47,7 @@ KAPI void deallocate_page(struct kernel *k, void *p);
 
 /// Map a single page to a specified address.
 KAPI void map_page(struct kernel *k, uint64_t address, uint8_t level, uint64_t phys_addr);
+
+
+KAPI void kfree(void *ptr);
+KAPI void *kmalloc(uint64_t nbytes);

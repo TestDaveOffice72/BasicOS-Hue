@@ -39,9 +39,11 @@ out dx, al;
 int 36;
 
 push rax
+mov rcx, qword 0x16
 int 37
-mov qword [rax], qword 0x4040404040404040
-mov rcx, 8
+mov qword [rax], qword 0x4040404040400a
+mov rcx, rax
+mov rdx, 8
 int 34
 
 ; poweroff machine, we’re done
@@ -70,10 +72,9 @@ out dx, al;
 
 ; draw the flag of the glorious republic of lituhania.
 int 39;
-; yields happen
-int 36;
 
-b2: hlt
+; yields happen
+b2: int 36;
 jmp b2
 
 
