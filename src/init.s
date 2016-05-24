@@ -41,7 +41,8 @@ int 36;
 push rax
 mov rcx, qword 0x16
 int 37
-mov qword [rax], qword 0x4040404040400a
+mov rdx, 0x0a40404040404040
+mov qword [rax], rdx
 mov rcx, rax
 mov rdx, 8
 int 34
